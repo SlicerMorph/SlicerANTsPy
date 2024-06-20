@@ -968,9 +968,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         initial_itk_transform = itk.AffineTransform[precision_type, fixedImage.ndim].New()  # not wrapped for float in 5.3
         initial_itk_transform.SetIdentity()
         if "initialTransformNode" in initialTransformSettings:
-            # https://github.com/SlicerMorph/SlicerANTs/issues/7
-            print("Passing Slicer nodes to ITK filters is not yet implemented")
-            # initial_itk_transform = itkTransformFromTransformNode(initialTransformSettings["initialTransformNode"])
+            initial_itk_transform = itkTransformFromTransformNode(initialTransformSettings["initialTransformNode"])
         elif "initializationFeature" in initialTransformSettings:
             print("This initialization is not yet implemented")
             # use itk.CenteredTransformInitializer to construct initial transform
