@@ -57,9 +57,14 @@ class ITKANTsCommonLogic(ScriptedLoadableModuleLogic):
         return self._itk
 
     def importITK(self, confirmInstallation=True):
+        perform_install = False
         try:
             import itk
         except ModuleNotFoundError:
+            perform_install = True
+        if not hasattr(itk, 'ANTSRegistration'):
+            perform_install = True
+        if perform_install:
             with slicer.util.WaitCursor(), slicer.util.displayPythonShell():
                 itk = self.installITK(confirmInstallation)
                 if itk is None:
