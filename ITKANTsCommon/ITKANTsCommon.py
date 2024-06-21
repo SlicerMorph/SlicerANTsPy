@@ -57,19 +57,34 @@ class ITKANTsCommonLogic(ScriptedLoadableModuleLogic):
         return self._itk
 
     def importITK(self, confirmInstallation=True):
-        perform_install = False
+        import importlib
+        from importlib.metadata import PackageNotFoundError
         try:
-            import itk
-        except ModuleNotFoundError:
-            perform_install = True
-        if not hasattr(itk, 'ANTSRegistration'):
-            perform_install = True
-        if perform_install:
+            importlib.metadata.version('itk-ants')
+        except PackageNotFoundError:
+            request_restart = False
+            try:
+                # Ensure ants even if it is not available as a lazy attributed on
+                # initial import
+                import itkConfig
+                request_restart = True
+            except ImportError:
+                pass
             with slicer.util.WaitCursor(), slicer.util.displayPythonShell():
                 itk = self.installITK(confirmInstallation)
+                if request_restart:
+                    restart = slicer.util.confirmOkCancelDisplay(
+                        "A restart is required to use this module. Restart now?"
+                    )
+                    if restart:
+                        slicer.util.restart()
+
                 if itk is None:
                     return None
-        logging.info(f"ITK {itk.__version__} imported correctly")
+        import itk
+        itk_version = importlib.metadata.version('itk')
+        ants_version = importlib.metadata.version('itk-ants')
+        logging.info(f"ITK imported correctly. itk: {itk_version}, itk-ants: {ants_version}")
         return itk
 
     @staticmethod
