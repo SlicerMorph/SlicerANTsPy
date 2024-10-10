@@ -1135,6 +1135,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             )
             return
 
+        logging.info("Preparing to build the template image")
         precision_type = itk.F
         if generalSettings["computationPrecision"] == "double":
             precision_type = itk.D
@@ -1143,7 +1144,31 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         itk = self.itk
         firstImage = itk.imread(pathList[0])
 
-        gwtb = itk.ANTSGroupwiseBuildTemplate.New()
+        template_type = type(firstImage)
+        if initialTemplate is not None:
+            initialTemplateImage = slicer.util.itkImageFromVolume(initialTemplate)
+            template_type = type(initialTemplateImage)
+
+        gwtb = itk.ANTSGroupwiseBuildTemplate[type(firstImage), template_type, precision_type].New()
+        if initialTemplate is not None:
+            gwtb.SetInitialTemplateImage(initialTemplateImage)
+        gwtb.SetPathList(pathList)
+
+        # TODO: construct pairwise registration instance and set it to gwtb
+
+        logging.info("Running ANTSGroupwiseBuildTemplate")
+        slicer.app.processEvents()
+        startTime = time.time()
+        gwtb.Update()
+        stopTime = time.time()
+        logging.info(f"ANTSGroupwiseBuildTemplate completed in {stopTime-startTime:.2f} seconds")
+
+        if outputTemplate is not None:
+            itkImage = gwtb.GetOutput()
+            slicer.util.updateVolumeFromITKImage(outputTemplate, itkImage)
+            slicer.util.setSliceViewerLayers(
+                background=outputTemplate, fit=True, rotateToVolumePlane=True
+            )
 
 
 class PresetManager:
