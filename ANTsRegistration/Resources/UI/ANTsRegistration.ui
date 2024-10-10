@@ -12,728 +12,768 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton_2">
-     <property name="text">
-      <string>Parameter set</string>
+    <widget class="QTabWidget" name="tabsWidget">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
-     <property name="collapsed">
-      <bool>false</bool>
+     <property name="currentIndex">
+      <number>0</number>
      </property>
-     <layout class="QFormLayout" name="formLayout_6">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_17">
-        <property name="text">
-         <string>Parameter Set:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="parameterNodeSelector">
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLScriptedModuleNode</string>
-         </stringlist>
-        </property>
-        <property name="showHidden">
-         <bool>true</bool>
-        </property>
-        <property name="hideChildNodeTypes">
-         <stringlist notr="true"/>
-        </property>
-        <property name="baseName">
-         <string>ANTsRegistrationParameters</string>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="interactionNodeSingletonTag">
-         <string notr="true"/>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="InputsCollapsibleButton">
-     <property name="text">
-      <string>Inputs</string>
-     </property>
-     <property name="collapsed">
-      <bool>false</bool>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="2" column="1">
-       <widget class="QComboBox" name="stagesPresetsComboBox">
-        <property name="toolTip">
-         <string>Set registration stages from preset. Settings can be modified under the Stages (Advanced) tab.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_12">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Moving Image: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_15">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Stages (Presets): </string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_11">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Fixed Image: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="2">
-       <widget class="QPushButton" name="openPresetsDirectoryButton">
-        <property name="text">
-         <string>Open Presets Folder</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1" colspan="2">
-       <widget class="qMRMLNodeComboBox" name="movingImageNodeComboBox">
-        <property name="toolTip">
-         <string>This will set the selected Image as moving for the first metric of all stages.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLScalarVolumeNode</string>
-         </stringlist>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1" colspan="2">
-       <widget class="qMRMLNodeComboBox" name="fixedImageNodeComboBox">
-        <property name="toolTip">
-         <string>This will set the selected Image as fixed for the first metric of all stages.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLScalarVolumeNode</string>
-         </stringlist>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="stagesCollapsibleButton">
-     <property name="text">
-      <string>Stages (Advanced)</string>
-     </property>
-     <property name="collapsed">
-      <bool>true</bool>
-     </property>
-     <layout class="QGridLayout" name="gridLayout">
-      <item row="1" column="0" colspan="2">
-       <widget class="ctkCollapsibleButton" name="stagePropertiesCollapsibleButton">
-        <property name="text">
-         <string>Stage Properties</string>
-        </property>
-        <property name="collapsed">
-         <bool>false</bool>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_2">
-         <item>
-          <widget class="ctkCollapsibleButton" name="metricsCollapsibleButton">
-           <property name="text">
-            <string>Metrics</string>
-           </property>
-           <property name="collapsed">
-            <bool>false</bool>
-           </property>
-           <layout class="QVBoxLayout" name="verticalLayout_3">
+     <widget class="QWidget" name="pairwiseTab">
+      <attribute name="title">
+       <string>Pair-wise</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="pairwiseLayout">
+       <item>
+        <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton_2">
+         <property name="text">
+          <string>Parameter set</string>
+         </property>
+         <property name="collapsed">
+          <bool>false</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_6">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_17">
+            <property name="text">
+             <string>Parameter Set:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="qMRMLNodeComboBox" name="parameterNodeSelector">
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLScriptedModuleNode</string>
+             </stringlist>
+            </property>
+            <property name="showHidden">
+             <bool>true</bool>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="baseName">
+             <string>ANTsRegistrationParameters</string>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="InputsCollapsibleButton">
+         <property name="text">
+          <string>Inputs</string>
+         </property>
+         <property name="collapsed">
+          <bool>false</bool>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="2" column="1">
+           <widget class="QComboBox" name="stagesPresetsComboBox">
+            <property name="toolTip">
+             <string>Set registration stages from preset. Settings can be modified under the Stages (Advanced) tab.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_12">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Moving Image: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_15">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Stages (Presets): </string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_11">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Fixed Image: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QPushButton" name="openPresetsDirectoryButton">
+            <property name="text">
+             <string>Open Presets Folder</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1" colspan="2">
+           <widget class="qMRMLNodeComboBox" name="movingImageNodeComboBox">
+            <property name="toolTip">
+             <string>This will set the selected Image as moving for the first metric of all stages.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLScalarVolumeNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1" colspan="2">
+           <widget class="qMRMLNodeComboBox" name="fixedImageNodeComboBox">
+            <property name="toolTip">
+             <string>This will set the selected Image as fixed for the first metric of all stages.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLScalarVolumeNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="editEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="stagesCollapsibleButton">
+         <property name="text">
+          <string>Stages (Advanced)</string>
+         </property>
+         <property name="collapsed">
+          <bool>true</bool>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="1" column="0" colspan="2">
+           <widget class="ctkCollapsibleButton" name="stagePropertiesCollapsibleButton">
+            <property name="text">
+             <string>Stage Properties</string>
+            </property>
+            <property name="collapsed">
+             <bool>false</bool>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_2">
+             <item>
+              <widget class="ctkCollapsibleButton" name="metricsCollapsibleButton">
+               <property name="text">
+                <string>Metrics</string>
+               </property>
+               <property name="collapsed">
+                <bool>false</bool>
+               </property>
+               <layout class="QVBoxLayout" name="verticalLayout_3">
+                <item>
+                 <widget class="QFrame" name="metricsFrame">
+                  <property name="frameShape">
+                   <enum>QFrame::StyledPanel</enum>
+                  </property>
+                  <property name="frameShadow">
+                   <enum>QFrame::Raised</enum>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="ctkCollapsibleButton" name="levelsCollapsibleButton">
+               <property name="text">
+                <string>Levels</string>
+               </property>
+               <property name="collapsed">
+                <bool>false</bool>
+               </property>
+               <layout class="QVBoxLayout" name="verticalLayout_4">
+                <item>
+                 <widget class="QFrame" name="levelsFrame">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="frameShape">
+                   <enum>QFrame::StyledPanel</enum>
+                  </property>
+                  <property name="frameShadow">
+                   <enum>QFrame::Raised</enum>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <widget class="ctkCollapsibleButton" name="maskingCollapsibleButton">
+               <property name="text">
+                <string>Masking</string>
+               </property>
+               <property name="collapsed">
+                <bool>false</bool>
+               </property>
+               <layout class="QFormLayout" name="formLayout_5">
+                <item row="2" column="0">
+                 <widget class="QLabel" name="label_6">
+                  <property name="text">
+                   <string>Fixed Mask: </string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QLabel" name="label_7">
+                  <property name="text">
+                   <string>Moving Mask: </string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="qMRMLNodeComboBox" name="fixedMaskComboBox">
+                  <property name="enabled">
+                   <bool>true</bool>
+                  </property>
+                  <property name="nodeTypes">
+                   <stringlist>
+                    <string>vtkMRMLLabelMapVolumeNode</string>
+                   </stringlist>
+                  </property>
+                  <property name="noneEnabled">
+                   <bool>true</bool>
+                  </property>
+                  <property name="addEnabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="removeEnabled">
+                   <bool>false</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="qMRMLNodeComboBox" name="movingMaskComboBox">
+                  <property name="enabled">
+                   <bool>true</bool>
+                  </property>
+                  <property name="nodeTypes">
+                   <stringlist>
+                    <string>vtkMRMLLabelMapVolumeNode</string>
+                   </stringlist>
+                  </property>
+                  <property name="noneEnabled">
+                   <bool>true</bool>
+                  </property>
+                  <property name="addEnabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="removeEnabled">
+                   <bool>false</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="label_14">
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QPushButton" name="linkMaskingStagesPushButton">
+                  <property name="toolTip">
+                   <string>When checked, settings will be the same for all stages.</string>
+                  </property>
+                  <property name="text">
+                   <string>Link Across Stages</string>
+                  </property>
+                  <property name="checkable">
+                   <bool>true</bool>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item row="0" column="0" colspan="2">
+           <widget class="QFrame" name="stagesFrame">
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Raised</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="InitialTransformCollapsibleButton">
+         <property name="text">
+          <string>Initial Moving Transform</string>
+         </property>
+         <property name="collapsed">
+          <bool>false</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_9">
+            <property name="text">
+             <string>Type: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="initialTransformTypeComboBox">
+            <property name="toolTip">
+             <string>Choose Initialization feature. When it's based on images, the moving and fixed nodes from the first metric will be used.</string>
+            </property>
             <item>
-             <widget class="QFrame" name="metricsFrame">
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-             </widget>
+             <property name="text">
+              <string>None</string>
+             </property>
             </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="ctkCollapsibleButton" name="levelsCollapsibleButton">
-           <property name="text">
-            <string>Levels</string>
-           </property>
-           <property name="collapsed">
-            <bool>false</bool>
-           </property>
-           <layout class="QVBoxLayout" name="verticalLayout_4">
             <item>
-             <widget class="QFrame" name="levelsFrame">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-             </widget>
+             <property name="text">
+              <string>Use Transform Node</string>
+             </property>
             </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="ctkCollapsibleButton" name="maskingCollapsibleButton">
-           <property name="text">
-            <string>Masking</string>
-           </property>
-           <property name="collapsed">
-            <bool>false</bool>
-           </property>
-           <layout class="QFormLayout" name="formLayout_5">
-            <item row="2" column="0">
-             <widget class="QLabel" name="label_6">
-              <property name="text">
-               <string>Fixed Mask: </string>
-              </property>
-             </widget>
+            <item>
+             <property name="text">
+              <string>Images Geometric Center</string>
+             </property>
             </item>
-            <item row="3" column="0">
-             <widget class="QLabel" name="label_7">
-              <property name="text">
-               <string>Moving Mask: </string>
-              </property>
-             </widget>
+            <item>
+             <property name="text">
+              <string>Images Center of Mass</string>
+             </property>
             </item>
-            <item row="2" column="1">
-             <widget class="qMRMLNodeComboBox" name="fixedMaskComboBox">
-              <property name="enabled">
-               <bool>true</bool>
-              </property>
-              <property name="nodeTypes">
-               <stringlist>
-                <string>vtkMRMLLabelMapVolumeNode</string>
-               </stringlist>
-              </property>
-              <property name="noneEnabled">
-               <bool>true</bool>
-              </property>
-              <property name="addEnabled">
-               <bool>false</bool>
-              </property>
-              <property name="removeEnabled">
-               <bool>false</bool>
-              </property>
-             </widget>
+            <item>
+             <property name="text">
+              <string>Images Origin</string>
+             </property>
             </item>
-            <item row="3" column="1">
-             <widget class="qMRMLNodeComboBox" name="movingMaskComboBox">
-              <property name="enabled">
-               <bool>true</bool>
-              </property>
-              <property name="nodeTypes">
-               <stringlist>
-                <string>vtkMRMLLabelMapVolumeNode</string>
-               </stringlist>
-              </property>
-              <property name="noneEnabled">
-               <bool>true</bool>
-              </property>
-              <property name="addEnabled">
-               <bool>false</bool>
-              </property>
-              <property name="removeEnabled">
-               <bool>false</bool>
-              </property>
-             </widget>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_10">
+            <property name="text">
+             <string>Transform Node: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="qMRMLNodeComboBox" name="initialTransformNodeComboBox">
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLTransformNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="removeEnabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="outputsCollapsibleButton">
+         <property name="text">
+          <string>Outputs</string>
+         </property>
+         <property name="collapsed">
+          <bool>false</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_4">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_13">
+            <property name="text">
+             <string>Forward Transform: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="qMRMLNodeComboBox" name="outputForwardTransformComboBox">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string>Select output forward transform. Choosing a Grid Transform Node will force a grid output. In this case, the fixed image will be used as grid reference.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLTransformNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_18">
+            <property name="text">
+             <string>Inverse Transform: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="qMRMLNodeComboBox" name="outputInverseTransformComboBox">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string>Select output inverse transform. Choosing a Grid Transform Node will force a grid output. In this case, the fixed image will be used as grid reference.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLTransformNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="text">
+             <string>Transformed Volume:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="qMRMLNodeComboBox" name="outputVolumeComboBox">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string/>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLScalarVolumeNode</string>
+             </stringlist>
+            </property>
+            <property name="showChildNodeTypes">
+             <bool>false</bool>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="removeEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="generalSettingsCollapsibleButton">
+         <property name="text">
+          <string>Settings</string>
+         </property>
+         <property name="collapsed">
+          <bool>false</bool>
+         </property>
+         <layout class="QFormLayout" name="formLayout_3">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Dimensionality: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="dimensionalitySpinBox">
+            <property name="toolTip">
+             <string>This option forces the image to be treated as a specified-dimensional image.</string>
+            </property>
+            <property name="minimum">
+             <number>2</number>
+            </property>
+            <property name="maximum">
+             <number>4</number>
+            </property>
+            <property name="value">
+             <number>3</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Histogram Matching: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="histogramMatchingCheckBox">
+            <property name="toolTip">
+             <string>Histogram match the images before registration.</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_5">
+            <property name="text">
+             <string>Winsorize Image Intensities: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="ctkRangeWidget" name="winsorizeRangeWidget">
+            <property name="toolTip">
+             <string>Winsorize data based on specified quantiles.</string>
+            </property>
+            <property name="decimals">
+             <number>3</number>
+            </property>
+            <property name="singleStep">
+             <double>0.005000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="minimumValue">
+             <double>0.005000000000000</double>
+            </property>
+            <property name="maximumValue">
+             <double>0.995000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Output Interpolation: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="outputInterpolationComboBox">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="toolTip">
+             <string>Select an interpolation to generate the output transformed volume.</string>
+            </property>
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <item>
+             <property name="text">
+              <string>Linear</string>
+             </property>
             </item>
-            <item row="1" column="0">
-             <widget class="QLabel" name="label_14">
-              <property name="text">
-               <string/>
-              </property>
-             </widget>
+            <item>
+             <property name="text">
+              <string>NearestNeighbor</string>
+             </property>
             </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="linkMaskingStagesPushButton">
-              <property name="toolTip">
-               <string>When checked, settings will be the same for all stages.</string>
-              </property>
-              <property name="text">
-               <string>Link Across Stages</string>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-              <property name="checked">
-               <bool>true</bool>
-              </property>
-             </widget>
+            <item>
+             <property name="text">
+              <string>MultiLabel</string>
+             </property>
             </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item row="0" column="0" colspan="2">
-       <widget class="QFrame" name="stagesFrame">
-        <property name="frameShape">
-         <enum>QFrame::StyledPanel</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Raised</enum>
-        </property>
-       </widget>
-      </item>
-     </layout>
+            <item>
+             <property name="text">
+              <string>Gaussian</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>BSpline</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>CosineWindowedSinc</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>WelchWindowedSinc</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>HammingWindowedSinc</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>LanczosWindowedSinc</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>GenericLabel</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_8">
+            <property name="text">
+             <string>Computation Precision: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QComboBox" name="computationPrecisionComboBox">
+            <item>
+             <property name="text">
+              <string>float</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>double</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_16">
+            <property name="text">
+             <string>Output Displacement Field: </string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QCheckBox" name="outputDisplacementFieldCheckBox">
+            <property name="toolTip">
+             <string>When checked, the output transform will be returned as a displacement field.</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="runRegistrationButton">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="toolTip">
+          <string/>
+         </property>
+         <property name="text">
+          <string>Run Registration</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="templateTab">
+      <attribute name="title">
+       <string>Template</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="templateLayout">
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
     </widget>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="InitialTransformCollapsibleButton">
-     <property name="text">
-      <string>Initial Moving Transform</string>
-     </property>
-     <property name="collapsed">
-      <bool>false</bool>
-     </property>
-     <layout class="QFormLayout" name="formLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_9">
-        <property name="text">
-         <string>Type: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QComboBox" name="initialTransformTypeComboBox">
-        <property name="toolTip">
-         <string>Choose Initialization feature. When it's based on images, the moving and fixed nodes from the first metric will be used.</string>
-        </property>
-        <item>
-         <property name="text">
-          <string>None</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Use Transform Node</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Images Geometric Center</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Images Center of Mass</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Images Origin</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_10">
-        <property name="text">
-         <string>Transform Node: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="qMRMLNodeComboBox" name="initialTransformNodeComboBox">
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLTransformNode</string>
-         </stringlist>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="outputsCollapsibleButton">
-     <property name="text">
-      <string>Outputs</string>
-     </property>
-     <property name="collapsed">
-      <bool>false</bool>
-     </property>
-     <layout class="QFormLayout" name="formLayout_4">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_13">
-        <property name="text">
-         <string>Forward Transform: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputForwardTransformComboBox">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="toolTip">
-         <string>Select output forward transform. Choosing a Grid Transform Node will force a grid output. In this case, the fixed image will be used as grid reference.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLTransformNode</string>
-         </stringlist>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_18">
-        <property name="text">
-         <string>Inverse Transform: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputInverseTransformComboBox">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="toolTip">
-         <string>Select output inverse transform. Choosing a Grid Transform Node will force a grid output. In this case, the fixed image will be used as grid reference.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLTransformNode</string>
-         </stringlist>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_2">
-        <property name="text">
-         <string>Transformed Volume:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputVolumeComboBox">
-        <property name="enabled">
-         <bool>false</bool>
-        </property>
-        <property name="toolTip">
-         <string/>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLScalarVolumeNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="ctkCollapsibleButton" name="generalSettingsCollapsibleButton">
-     <property name="text">
-      <string>Settings</string>
-     </property>
-     <property name="collapsed">
-      <bool>false</bool>
-     </property>
-     <layout class="QFormLayout" name="formLayout_3">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>Dimensionality: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSpinBox" name="dimensionalitySpinBox">
-        <property name="toolTip">
-         <string>This option forces the image to be treated as a specified-dimensional image.</string>
-        </property>
-        <property name="minimum">
-         <number>2</number>
-        </property>
-        <property name="maximum">
-         <number>4</number>
-        </property>
-        <property name="value">
-         <number>3</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_3">
-        <property name="text">
-         <string>Histogram Matching: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QCheckBox" name="histogramMatchingCheckBox">
-        <property name="toolTip">
-         <string>Histogram match the images before registration.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_5">
-        <property name="text">
-         <string>Winsorize Image Intensities: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="ctkRangeWidget" name="winsorizeRangeWidget">
-        <property name="toolTip">
-         <string>Winsorize data based on specified quantiles.</string>
-        </property>
-        <property name="decimals">
-         <number>3</number>
-        </property>
-        <property name="singleStep">
-         <double>0.005000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="minimumValue">
-         <double>0.005000000000000</double>
-        </property>
-        <property name="maximumValue">
-         <double>0.995000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>Output Interpolation: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QComboBox" name="outputInterpolationComboBox">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="toolTip">
-         <string>Select an interpolation to generate the output transformed volume.</string>
-        </property>
-        <property name="editable">
-         <bool>false</bool>
-        </property>
-        <item>
-         <property name="text">
-          <string>Linear</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>NearestNeighbor</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>MultiLabel</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Gaussian</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>BSpline</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>CosineWindowedSinc</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>WelchWindowedSinc</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>HammingWindowedSinc</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>LanczosWindowedSinc</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>GenericLabel</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="label_8">
-        <property name="text">
-         <string>Computation Precision: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
-       <widget class="QComboBox" name="computationPrecisionComboBox">
-        <item>
-         <property name="text">
-          <string>float</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>double</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="label_16">
-        <property name="text">
-         <string>Output Displacement Field: </string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QCheckBox" name="outputDisplacementFieldCheckBox">
-        <property name="toolTip">
-         <string>When checked, the output transform will be returned as a displacement field.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="runRegistrationButton">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="toolTip">
-      <string/>
-     </property>
-     <property name="text">
-      <string>Run Registration</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
    </item>
   </layout>
  </widget>
