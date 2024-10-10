@@ -20,7 +20,7 @@
       </sizepolicy>
      </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="pairwiseTab">
       <attribute name="title">
@@ -759,6 +759,115 @@
       </attribute>
       <layout class="QVBoxLayout" name="templateLayout">
        <item>
+        <layout class="QFormLayout" name="formLayout_2">
+         <item row="0" column="0">
+          <widget class="QLabel" name="inTemplateLabel">
+           <property name="text">
+            <string>Initial Template:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="qMRMLNodeComboBox" name="initialTemplateComboBox">
+           <property name="toolTip">
+            <string>(Optional) Initial template. If not provided, a simple mean of input images will be used.</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLScalarVolumeNode</string>
+            </stringlist>
+           </property>
+           <property name="hideChildNodeTypes">
+            <stringlist notr="true"/>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>false</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="interactionNodeSingletonTag">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QPushButton" name="selectImages">
+         <property name="text">
+          <string>Select input images ...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="inputListCollapsibleButton">
+         <property name="text">
+          <string>View input image paths</string>
+         </property>
+         <property name="collapsed">
+          <bool>true</bool>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_5">
+          <item>
+           <widget class="QTextEdit" name="inputFileTable"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="clearButton">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>Clear input path list</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayout_7">
+         <item row="0" column="0">
+          <widget class="QLabel" name="outTemplateLabel">
+           <property name="text">
+            <string>Output template:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="qMRMLNodeComboBox" name="outTemplateComboBox">
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLScalarVolumeNode</string>
+            </stringlist>
+           </property>
+           <property name="hideChildNodeTypes">
+            <stringlist notr="true"/>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="interactionNodeSingletonTag">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QPushButton" name="runTemplateBuilding">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Run Template Building</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacer">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -945,6 +1054,38 @@
     <hint type="destinationlabel">
      <x>265</x>
      <y>45</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>initialTemplateComboBox</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>218</x>
+     <y>477</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>261</x>
+     <y>49</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outTemplateComboBox</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>218</x>
+     <y>477</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>263</x>
+     <y>486</y>
     </hint>
    </hints>
   </connection>
