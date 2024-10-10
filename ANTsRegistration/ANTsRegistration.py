@@ -37,7 +37,7 @@ def itkTransformFromTransformNode(transformNode):
 
     tempFilePath = os.path.join(
         slicer.app.temporaryPath,
-        "tempTransform_{0}.h5".format(time.time()),
+        "tempTransform_{0}.tfm".format(time.time()),
     )
     storageNode = slicer.vtkMRMLTransformStorageNode()
     storageNode.SetFileName(tempFilePath)
@@ -73,7 +73,7 @@ def transformNodeFromItkTransform(itkTransform, transformNode=None):
 
     tempFilePath = os.path.join(
         slicer.app.temporaryPath,
-        "tempTransform_{0}.h5".format(time.time()),
+        "tempTransform_{0}.tfm".format(time.time()),
     )
     itk.transformwrite(itkTransform, tempFilePath)
     storageNode = slicer.vtkMRMLTransformStorageNode()
