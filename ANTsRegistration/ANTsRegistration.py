@@ -123,6 +123,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
+        self.inputFilePaths = []
         self._parameterNode = None
         self._updatingGUIFromParameterNode = False
 
@@ -299,6 +300,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.runRegistrationButton.connect(
             "clicked(bool)", self.onRunRegistrationButton
         )
+        self.ui.clearButton.connect("clicked(bool)", self.onClearButton)
+        self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
+        self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -736,6 +740,31 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         parameters = self.logic.createProcessParameters(self._parameterNode)
         self.logic.process(**parameters)
 
+    def onClearButton(self):
+        self.ui.inputFileTable.clear()
+        self.inputFilePaths = []
+        self.ui.clearButton.enabled = False
+
+    def onSelectImages(self):
+        fileDialog = qt.QFileDialog()
+        fileDialog.setFileMode(
+            qt.QFileDialog.ExistingFiles
+        )  # Set to open an existing file
+        fileDialog.setNameFilter(
+            "Common image types(*.nii.gz *.nrrd *.mha);;All files (*.*)"
+        )  # Set file filter
+        if fileDialog.exec_():
+            self.inputFilePaths.extend(list(fileDialog.selectedFiles()))
+        self.ui.inputFileTable.plainText = "\n".join(self.inputFilePaths)
+        self.ui.clearButton.enabled = bool(self.inputFilePaths is not [])
+        self.ui.runTemplateBuilding.enabled = bool(self.inputFilePaths is not [])
+
+    def onRunTemplateBuilding(self):
+        parameters = self.logic.createProcessParameters(self._parameterNode)
+        self.logic.buildTemplate(
+            initialTemplate, pathList, outputTemplate, **parameters
+        )
+
     def onOpenPresetsDirectoryButtonClicked(self):
         import platform, subprocess
 
@@ -980,7 +1009,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         initial_itk_transform = itk.AffineTransform[
             precision_type, fixedImage.ndim
-        ].New()  # not wrapped for float in 5.3
+        ].New()
         initial_itk_transform.SetIdentity()
         if "initialTransformNode" in initialTransformSettings:
             initial_itk_transform = itkTransformFromTransformNode(
@@ -1096,6 +1125,25 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
+
+    def buildTemplate(
+        self, initialTemplate, pathList, outputTemplate, stages, generalSettings
+    ):
+        if len(stages) > 1:
+            logging.error(
+                "Template building is not yet implemented for multiple stages"
+            )
+            return
+
+        precision_type = itk.F
+        if generalSettings["computationPrecision"] == "double":
+            precision_type = itk.D
+
+        # read first image - it will be used as a reference for image grid, pixel type, and dimensionality
+        itk = self.itk
+        firstImage = itk.imread(pathList[0])
+
+        gwtb = itk.ANTSGroupwiseBuildTemplate.New()
 
 
 class PresetManager:
