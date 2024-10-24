@@ -301,6 +301,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "clicked(bool)", self.onRunRegistrationButton
         )
         self.ui.clearButton.connect("clicked(bool)", self.onClearButton)
+        self.ui.removeButton.clicked.connect(self.onRemoveImagePaths)
+        self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
 
@@ -744,6 +746,23 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.inputFileListWidget.clear()
         self.inputFilePaths = []
         self.ui.clearButton.enabled = False
+
+
+    def onRemoveImagePaths(self):
+        selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
+
+        for i in selectedItemRows:
+            self.ui.inputFileListWidget.takeItem(i)
+
+    def onBumpImagePath(self):
+        selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
+
+        for i in selectedItemRows:
+            item = self.ui.inputFileListWidget.takeItem(i)
+            self.ui.inputFileListWidget.insertItem(0, item)
+
+        self.ui.inputFileListWidget.setCurrentRow(0)
+
 
     def onSelectImages(self):
         fileDialog = qt.QFileDialog()
