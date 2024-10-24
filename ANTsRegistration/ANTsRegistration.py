@@ -123,7 +123,6 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
-        self.inputFilePaths = []
         self._parameterNode = None
         self._updatingGUIFromParameterNode = False
 
@@ -305,6 +304,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
+
+        self.ui.pwSettingsButton.clicked.connect(self.onGoToSettings)
+        self.ui.templateSettingsButton.clicked.connect(self.onGoToSettings)
+
+        self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanBuild)
+        self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanBuild))
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -744,9 +749,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onClearButton(self):
         self.ui.inputFileListWidget.clear()
-        self.inputFilePaths = []
         self.ui.clearButton.enabled = False
-
 
     def onRemoveImagePaths(self):
         selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
@@ -763,6 +766,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.inputFileListWidget.setCurrentRow(0)
 
+    def onGoToSettings(self):
+        self.ui.tabsWidget.setCurrentWidget(self.ui.settingsTab)
+
 
     def onSelectImages(self):
         fileDialog = qt.QFileDialog()
@@ -773,19 +779,39 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "Common image types(*.nii.gz *.nrrd *.mha);;All files (*.*)"
         )  # Set file filter
         if fileDialog.exec_():
-            self.inputFilePaths.extend(list(fileDialog.selectedFiles()))
-        self.ui.inputFileListWidget.clear()
-        for path in self.inputFilePaths:
+            inputFilePaths = list(fileDialog.selectedFiles())
+        for path in inputFilePaths:
             self.ui.inputFileListWidget.addItem(path)
-        self.ui.clearButton.enabled = bool(self.inputFilePaths is not [])
-        self.ui.runTemplateBuilding.enabled = bool(self.inputFilePaths is not [])
+        self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
+        self.checkCanBuild()
 
+    
+    def checkCanBuild(self):
+        self.ui.runTemplateBuilding.enabled = self.ui.inputFileListWidget.count !=0 and self.ui.outTemplateComboBox.currentNode()
+    
     def onRunTemplateBuilding(self):
-        parameters = self.logic.createProcessParameters(self._parameterNode)
-        pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-        self.logic.buildTemplate(
-            self.ui.initialTemplateComboBox.currentNode(), pathList, self.ui.outTemplateComboBox.currentNode(), parameters
-        )
+        self.ui.runTemplateBuilding.enabled = False
+        self.ui.runTemplateBuilding.text = "Template building in progess"
+        slicer.app.processEvents()
+        try:
+            parameters = self.logic.createProcessParameters(self._parameterNode)
+            pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+            self.logic.buildTemplate(
+                self.ui.initialTemplateComboBox.currentNode(), 
+                pathList, 
+                self.ui.outTemplateComboBox.currentNode(), 
+                parameters['stages'], 
+                parameters['generalSettings']
+            )
+            self.ui.runTemplateBuilding.enabled = True
+            self.ui.runTemplateBuilding.text = "Run Template Building"
+            slicer.app.processEvents()
+        except Exception as e:
+            self.ui.runTemplateBuilding.enabled = True
+            self.ui.runTemplateBuilding.text = "Run Template Building"
+            slicer.app.processEvents()
+            raise e
+
 
     def onOpenPresetsDirectoryButtonClicked(self):
         import platform, subprocess
@@ -1149,11 +1175,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
     def buildTemplate(
-        self, initialTemplate, pathList, outputTemplate, parameters
+        self, initialTemplate, pathList, outputTemplate, stages, generalSettings
     ):
-        generalSettings = parameters['generalSettings']
-        print(generalSettings.keys())
-        stages = parameters["stages"]
         if len(stages) > 1:
             logging.error(
                 "Template building is not yet implemented for multiple stages"
