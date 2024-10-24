@@ -741,7 +741,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.logic.process(**parameters)
 
     def onClearButton(self):
-        self.ui.inputFileTable.clear()
+        self.ui.inputFileListWidget.clear()
         self.inputFilePaths = []
         self.ui.clearButton.enabled = False
 
@@ -755,13 +755,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )  # Set file filter
         if fileDialog.exec_():
             self.inputFilePaths.extend(list(fileDialog.selectedFiles()))
-        self.ui.inputFileTable.plainText = "\n".join(self.inputFilePaths)
+        self.ui.inputFileListWidget.clear()
+        for path in self.inputFilePaths:
+            self.ui.inputFileListWidget.addItem(path)
         self.ui.clearButton.enabled = bool(self.inputFilePaths is not [])
         self.ui.runTemplateBuilding.enabled = bool(self.inputFilePaths is not [])
 
     def onRunTemplateBuilding(self):
         parameters = self.logic.createProcessParameters(self._parameterNode)
-        pathList = self.ui.inputFileTable.toPlainText().split('\n')
+        pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
         self.logic.buildTemplate(
             self.ui.initialTemplateComboBox.currentNode(), pathList, self.ui.outTemplateComboBox.currentNode(), parameters
         )
