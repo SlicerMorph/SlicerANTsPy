@@ -761,8 +761,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onRunTemplateBuilding(self):
         parameters = self.logic.createProcessParameters(self._parameterNode)
+        pathList = self.ui.inputFileTable.toPlainText().split('\n')
         self.logic.buildTemplate(
-            initialTemplate, pathList, outputTemplate, **parameters
+            self.ui.initialTemplateComboBox.currentNode(), pathList, self.ui.outTemplateComboBox.currentNode(), parameters
         )
 
     def onOpenPresetsDirectoryButtonClicked(self):
@@ -1127,8 +1128,11 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
     def buildTemplate(
-        self, initialTemplate, pathList, outputTemplate, stages, generalSettings
+        self, initialTemplate, pathList, outputTemplate, parameters
     ):
+        generalSettings = parameters['generalSettings']
+        print(generalSettings.keys())
+        stages = parameters["stages"]
         if len(stages) > 1:
             logging.error(
                 "Template building is not yet implemented for multiple stages"
@@ -1136,6 +1140,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             return
 
         logging.info("Preparing to build the template image")
+        itk = self.itk
         precision_type = itk.F
         if generalSettings["computationPrecision"] == "double":
             precision_type = itk.D
