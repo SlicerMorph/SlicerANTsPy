@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>500</width>
-    <height>956</height>
+    <width>572</width>
+    <height>931</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -322,13 +322,6 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pwSettingsButton">
-         <property name="text">
-          <string>Go To Settings</string>
-         </property>
-        </widget>
-       </item>
-       <item>
         <widget class="QPushButton" name="runRegistrationButton">
          <property name="enabled">
           <bool>false</bool>
@@ -355,11 +348,6 @@
         </spacer>
        </item>
       </layout>
-     </widget>
-     <widget class="QWidget" name="groupwiseTab">
-      <attribute name="title">
-       <string>Group-wise</string>
-      </attribute>
      </widget>
      <widget class="QWidget" name="templateTab">
       <attribute name="title">
@@ -494,13 +482,6 @@
         </layout>
        </item>
        <item>
-        <widget class="QPushButton" name="templateSettingsButton">
-         <property name="text">
-          <string>Go to Settings</string>
-         </property>
-        </widget>
-       </item>
-       <item>
         <widget class="QPushButton" name="runTemplateBuilding">
          <property name="enabled">
           <bool>false</bool>
@@ -522,6 +503,82 @@
           </size>
          </property>
         </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="groupwiseTab">
+      <attribute name="title">
+       <string>Group-wise</string>
+      </attribute>
+      <layout class="QFormLayout" name="formLayout_8">
+       <item row="0" column="0">
+        <widget class="QLabel" name="inTemplateLabel_2">
+         <property name="text">
+          <string>Template</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="qMRMLNodeComboBox" name="inTemplateComboBox">
+         <property name="nodeTypes">
+          <stringlist notr="true">
+           <string>vtkMRMLScalarVolumeNode</string>
+          </stringlist>
+         </property>
+         <property name="hideChildNodeTypes">
+          <stringlist notr="true"/>
+         </property>
+         <property name="interactionNodeSingletonTag">
+          <string notr="true"/>
+         </property>
+         <property name="noneDisplay">
+          <string>Select a node to use as the fixed template</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_19">
+         <property name="text">
+          <string>Output Directory</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="ctkDirectoryButton" name="DirectoryButton"/>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_20">
+         <property name="text">
+          <string>Input directory</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QListWidget" name="listWidget"/>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="QPushButton" name="pushButton">
+         <property name="text">
+          <string>Select input images</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <widget class="QPushButton" name="pushButton_2">
+         <property name="text">
+          <string>Register</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_21">
+         <property name="text">
+          <string>Presets</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_2"/>
        </item>
       </layout>
      </widget>
@@ -971,6 +1028,22 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkDirectoryButton</class>
+   <extends>QWidget</extends>
+   <header>ctkDirectoryButton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkRangeWidget</class>
+   <extends>QWidget</extends>
+   <header>ctkRangeWidget.h</header>
+  </customwidget>
+  <customwidget>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
@@ -981,17 +1054,6 @@
    <extends>QWidget</extends>
    <header>qMRMLWidget.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkCollapsibleButton</class>
-   <extends>QWidget</extends>
-   <header>ctkCollapsibleButton.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkRangeWidget</class>
-   <extends>QWidget</extends>
-   <header>ctkRangeWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
