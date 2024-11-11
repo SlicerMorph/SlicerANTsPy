@@ -39,39 +39,6 @@
           <bool>false</bool>
          </property>
          <layout class="QGridLayout" name="gridLayout_2">
-          <item row="2" column="1">
-           <widget class="QComboBox" name="stagesPresetsComboBox">
-            <property name="toolTip">
-             <string>Set registration stages from preset. Settings can be modified under the Stages (Advanced) tab.</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_12">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>Moving Image: </string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_15">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="text">
-             <string>Stages (Presets): </string>
-            </property>
-           </widget>
-          </item>
           <item row="0" column="0">
            <widget class="QLabel" name="label_11">
             <property name="sizePolicy">
@@ -85,10 +52,16 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="2">
-           <widget class="QPushButton" name="openPresetsDirectoryButton">
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_12">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="text">
-             <string>Open Presets Folder</string>
+             <string>Moving Image: </string>
             </property>
            </widget>
           </item>
@@ -134,82 +107,6 @@
             </property>
             <property name="renameEnabled">
              <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="ctkCollapsibleButton" name="InitialTransformCollapsibleButton">
-         <property name="text">
-          <string>Initial Moving Transform</string>
-         </property>
-         <property name="collapsed">
-          <bool>false</bool>
-         </property>
-         <layout class="QFormLayout" name="formLayout">
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_9">
-            <property name="text">
-             <string>Type: </string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QComboBox" name="initialTransformTypeComboBox">
-            <property name="toolTip">
-             <string>Choose Initialization feature. When it's based on images, the moving and fixed nodes from the first metric will be used.</string>
-            </property>
-            <item>
-             <property name="text">
-              <string>None</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Use Transform Node</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Images Geometric Center</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Images Center of Mass</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Images Origin</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_10">
-            <property name="text">
-             <string>Transform Node: </string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="qMRMLNodeComboBox" name="initialTransformNodeComboBox">
-            <property name="nodeTypes">
-             <stringlist>
-              <string>vtkMRMLTransformNode</string>
-             </stringlist>
-            </property>
-            <property name="noneEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="addEnabled">
-             <bool>false</bool>
-            </property>
-            <property name="removeEnabled">
-             <bool>false</bool>
             </property>
            </widget>
           </item>
@@ -536,49 +433,46 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_19">
-         <property name="text">
-          <string>Output Directory</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <widget class="ctkDirectoryButton" name="DirectoryButton"/>
-       </item>
-       <item row="3" column="0">
+       <item row="1" column="0">
         <widget class="QLabel" name="label_20">
          <property name="text">
           <string>Input directory</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
-        <widget class="QListWidget" name="listWidget"/>
-       </item>
-       <item row="2" column="0" colspan="2">
-        <widget class="QPushButton" name="pushButton">
+       <item row="1" column="1">
+        <widget class="ctkDirectoryButton" name="inputDirectoryButton">
+         <property name="caption">
+          <string/>
+         </property>
          <property name="text">
-          <string>Select input images</string>
+          <string/>
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
-        <widget class="QPushButton" name="pushButton_2">
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_19">
+         <property name="text">
+          <string>Output Directory</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="ctkDirectoryButton" name="DirectoryButton">
+         <property name="directory">
+          <string>.</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <widget class="QPushButton" name="runGroupRegistrationButton">
          <property name="text">
           <string>Register</string>
          </property>
         </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_21">
-         <property name="text">
-          <string>Presets</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <layout class="QHBoxLayout" name="horizontalLayout_2"/>
        </item>
       </layout>
      </widget>
@@ -607,7 +501,7 @@
          <string>Parameter set</string>
         </property>
         <property name="collapsed">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <layout class="QFormLayout" name="formLayout_6">
          <item row="0" column="0">
@@ -638,6 +532,113 @@
            </property>
            <property name="interactionNodeSingletonTag">
             <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QLabel" name="label_15">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Stages (Presets): </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="stagesPresetsComboBox">
+          <property name="toolTip">
+           <string>Set registration stages from preset. Settings can be modified under the Stages (Advanced) tab.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="openPresetsDirectoryButton">
+          <property name="text">
+           <string>Open Presets Folder</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleButton" name="InitialTransformCollapsibleButton">
+        <property name="text">
+         <string>Initial Moving Transform</string>
+        </property>
+        <property name="collapsed">
+         <bool>false</bool>
+        </property>
+        <layout class="QFormLayout" name="formLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_9">
+           <property name="text">
+            <string>Type: </string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="initialTransformTypeComboBox">
+           <property name="toolTip">
+            <string>Choose Initialization feature. When it's based on images, the moving and fixed nodes from the first metric will be used.</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>None</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Use Transform Node</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Images Geometric Center</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Images Center of Mass</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Images Origin</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_10">
+           <property name="text">
+            <string>Transform Node: </string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="qMRMLNodeComboBox" name="initialTransformNodeComboBox">
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLTransformNode</string>
+            </stringlist>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>false</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>false</bool>
            </property>
           </widget>
          </item>
@@ -1231,6 +1232,22 @@
     <hint type="destinationlabel">
      <x>263</x>
      <y>486</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inTemplateComboBox</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>285</x>
+     <y>465</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>335</x>
+     <y>56</y>
     </hint>
    </hints>
   </connection>

@@ -304,12 +304,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
-
-        self.ui.pwSettingsButton.clicked.connect(self.onGoToSettings)
-        self.ui.templateSettingsButton.clicked.connect(self.onGoToSettings)
-
         self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanBuild)
         self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanBuild))
+
+        self.ui.runGroupRegistrationButton.clicked.connect(self.runGroupRegistration)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -811,6 +809,28 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
             raise e
+        
+
+    def runGroupRegistration(self):
+        path = self.ui.inputDirectoryButton.directory
+        filePaths = []
+        extensions = ['.nrrd', '.mha', '.nii.gz']
+        for file in os.listdir(path):
+            for ext in extensions:
+                if file.endswith(ext):
+                    filePaths.append(os.path.join(path, file))
+                    break
+
+        for filePath in filePaths:
+            print(filePath)
+            moving_volume = slicer.util.loadVolume(filePath)
+            self.ui.fixedImageNodeComboBox.setCurrentNode(self.ui.inTemplateComboBox.currentNode())
+            self.ui.movingImageNodeComboBox.setCurrentNode(moving_volume)
+            transformed_volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+            transformed_volume.SetName(moving_volume.GetName() + '-transformed')
+            self.onRunRegistrationButton()
+
+
 
 
     def onOpenPresetsDirectoryButtonClicked(self):
@@ -1072,6 +1092,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         ants_reg = itk.ANTSRegistration[
             type(fixedImage), type(movingImage), precision_type
         ].New()
+
+        
         for stage_index, stage in enumerate(stages):
             ants_reg.SetFixedImage(fixedImage)
             ants_reg.SetMovingImage(movingImage)
@@ -1108,7 +1130,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 ants_reg.SetSamplingRate(float(metric_settings[3]))
             if len(metric_settings) > 4:
                 ants_reg.SetUseGradientFilter(bool(metric_settings[4]))
-
             iterations = []
             shrink_factors = []
             sigmas = []
@@ -1124,7 +1145,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             # not exposed:
             # stage["levels"]["smoothingSigmasUnit"]
             # stage["levels"]["convergenceThreshold"]
-
             if transform_type in [
                 "Rigid",
                 "Affine",
@@ -1137,7 +1157,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             else:
                 ants_reg.SetSynMetric(metric_type)
                 ants_reg.SetSynIterations(iterations)
-
             if stage["masks"]["fixed"] is not None and stage["masks"]["fixed"] != "":
                 ants_reg.SetFixedImageMask(
                     slicer.util.itkImageFromVolume(stage["masks"]["fixed"])
@@ -1146,12 +1165,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 ants_reg.SetMovingImageMask(
                     slicer.util.itkImageFromVolume(stage["masks"]["moving"])
                 )
-
             ants_reg.Update()
             initial_itk_transform = ants_reg.GetForwardTransform()
             slicer.app.processEvents()
             # TODO: update progress bar
-
         forwardTransform = ants_reg.GetForwardTransform()
         inverseTransform = ants_reg.GetInverseTransform()
         slicer.app.processEvents()
