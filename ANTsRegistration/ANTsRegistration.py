@@ -1080,9 +1080,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         ].New()
         initial_itk_transform.SetIdentity()
         if "initialTransformNode" in initialTransformSettings:
-            initial_itk_transform = itkTransformFromTransformNode(
-                initialTransformSettings["initialTransformNode"]
-            )
+            if initialTransformSettings["initialTransformNode"]:
+                initial_itk_transform = itkTransformFromTransformNode(
+                    initialTransformSettings["initialTransformNode"]
+                )
         elif "initializationFeature" in initialTransformSettings:
             print("This initialization is not yet implemented")
             # use itk.CenteredTransformInitializer to construct initial transform
