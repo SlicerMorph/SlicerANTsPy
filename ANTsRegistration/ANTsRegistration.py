@@ -334,6 +334,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
+        self.logic.importITK()
 
     def exit(self):
         """
