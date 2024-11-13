@@ -814,6 +814,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def runGroupRegistration(self):
         path = self.ui.inputDirectoryButton.directory
+        outputPath  = self.ui.outputDirectoryButton.directory
         filePaths = []
         extensions = ['.nrrd', '.mha', '.nii.gz']
         for file in os.listdir(path):
@@ -828,8 +829,22 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.fixedImageNodeComboBox.setCurrentNode(self.ui.inTemplateComboBox.currentNode())
             self.ui.movingImageNodeComboBox.setCurrentNode(moving_volume)
             transformed_volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+            forward_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
+            inverse_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
             transformed_volume.SetName(moving_volume.GetName() + '-transformed')
+            forward_transform.SetName(moving_volume.GetName() + '-forward')
+            inverse_transform.SetName(moving_volume.GetName() + '-inverse')
+            self.ui.outputVolumeComboBox.setCurrentNode(transformed_volume)
+            self.ui.outputForwardTransformComboBox.setCurrentNode(forward_transform)
+            self.ui.outputInverseTransformComboBox.setCurrentNode(inverse_transform)
             self.onRunRegistrationButton()
+            slicer.util.saveNode(transformed_volume, os.path.join(outputPath, transformed_volume.GetName() +".nii.gz"))
+            slicer.util.saveNode(forward_transform, os.path.join(outputPath, forward_transform.GetName() +".tfm"))
+            slicer.util.saveNode(inverse_transform  , os.path.join(outputPath, inverse_transform.GetName() +"..tfm"))
+            slicer.mrmlScene.RemoveNode(moving_volume)
+            slicer.mrmlScene.RemoveNode(transformed_volume)
+            slicer.mrmlScene.RemoveNode(forward_transform)
+            slicer.mrmlScene.RemoveNode(inverse_transform)
 
 
 
