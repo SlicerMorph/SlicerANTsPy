@@ -204,9 +204,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.stagesTableWidget.view.selectionModel().selectionChanged.connect(
             self.updateParameterNodeFromGUI
         )
-        self.ui.outputInterpolationComboBox.connect(
-            "currentIndexChanged(int)", self.updateParameterNodeFromGUI
-        )
+        # self.ui.outputInterpolationComboBox.connect(
+        #     "currentIndexChanged(int)", self.updateParameterNodeFromGUI
+        # )
         self.ui.outputForwardTransformComboBox.connect(
             "currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI
         )
@@ -225,15 +225,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.dimensionalitySpinBox.connect(
             "valueChanged(int)", self.updateParameterNodeFromGUI
         )
-        self.ui.histogramMatchingCheckBox.connect(
-            "toggled(bool)", self.updateParameterNodeFromGUI
-        )
-        self.ui.outputDisplacementFieldCheckBox.connect(
-            "toggled(bool)", self.updateParameterNodeFromGUI
-        )
-        self.ui.winsorizeRangeWidget.connect(
-            "valuesChanged(double,double)", self.updateParameterNodeFromGUI
-        )
+        # self.ui.histogramMatchingCheckBox.connect(
+        #     "toggled(bool)", self.updateParameterNodeFromGUI
+        # )
+        # self.ui.outputDisplacementFieldCheckBox.connect(
+        #     "toggled(bool)", self.updateParameterNodeFromGUI
+        # )
+        # self.ui.winsorizeRangeWidget.connect(
+        #     "valuesChanged(double,double)", self.updateParameterNodeFromGUI
+        # )
         self.ui.computationPrecisionComboBox.connect(
             "currentIndexChanged(int)", self.updateParameterNodeFromGUI
         )
@@ -448,16 +448,16 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputVolumeComboBox.setCurrentNode(
             self._parameterNode.GetNodeReference(self.logic.params.OUTPUT_VOLUME_REF)
         )
-        self.ui.outputInterpolationComboBox.currentText = (
-            self._parameterNode.GetParameter(
-                self.logic.params.OUTPUT_INTERPOLATION_PARAM
-            )
-        )
-        self.ui.outputDisplacementFieldCheckBox.checked = int(
-            self._parameterNode.GetParameter(
-                self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM
-            )
-        )
+        # self.ui.outputInterpolationComboBox.currentText = (
+        #     self._parameterNode.GetParameter(
+        #         self.logic.params.OUTPUT_INTERPOLATION_PARAM
+        #     )
+        # )
+        # self.ui.outputDisplacementFieldCheckBox.checked = int(
+        #     self._parameterNode.GetParameter(
+        #         self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM
+        #     )
+        # )
 
         self.ui.initialTransformTypeComboBox.currentIndex = (
             int(
@@ -481,19 +481,19 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.dimensionalitySpinBox.value = int(
             self._parameterNode.GetParameter(self.logic.params.DIMENSIONALITY_PARAM)
         )
-        self.ui.histogramMatchingCheckBox.checked = int(
-            self._parameterNode.GetParameter(self.logic.params.HISTOGRAM_MATCHING_PARAM)
-        )
-        winsorizeIntensities = self._parameterNode.GetParameter(
-            self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM
-        ).split(",")
-        self.ui.winsorizeRangeWidget.setMinimumValue(float(winsorizeIntensities[0]))
-        self.ui.winsorizeRangeWidget.setMaximumValue(float(winsorizeIntensities[1]))
-        self.ui.computationPrecisionComboBox.currentText = (
-            self._parameterNode.GetParameter(
-                self.logic.params.COMPUTATION_PRECISION_PARAM
-            )
-        )
+        # self.ui.histogramMatchingCheckBox.checked = int(
+        #     self._parameterNode.GetParameter(self.logic.params.HISTOGRAM_MATCHING_PARAM)
+        # )
+        # winsorizeIntensities = self._parameterNode.GetParameter(
+        #     self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM
+        # ).split(",")
+        # self.ui.winsorizeRangeWidget.setMinimumValue(float(winsorizeIntensities[0]))
+        # self.ui.winsorizeRangeWidget.setMaximumValue(float(winsorizeIntensities[1]))
+        # self.ui.computationPrecisionComboBox.currentText = (
+        #     self._parameterNode.GetParameter(
+        #         self.logic.params.COMPUTATION_PRECISION_PARAM
+        #     )
+        # )
 
         self.ui.runRegistrationButton.enabled = (
             self.ui.fixedImageNodeComboBox.currentNodeID
@@ -573,14 +573,14 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.logic.params.OUTPUT_VOLUME_REF,
             self.ui.outputVolumeComboBox.currentNodeID,
         )
-        self._parameterNode.SetParameter(
-            self.logic.params.OUTPUT_INTERPOLATION_PARAM,
-            self.ui.outputInterpolationComboBox.currentText,
-        )
-        self._parameterNode.SetParameter(
-            self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM,
-            str(int(self.ui.outputDisplacementFieldCheckBox.checked)),
-        )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.OUTPUT_INTERPOLATION_PARAM,
+        #     self.ui.outputInterpolationComboBox.currentText,
+        # )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM,
+        #     str(int(self.ui.outputDisplacementFieldCheckBox.checked)),
+        # )
 
         self._parameterNode.SetParameter(
             self.logic.params.INITIALIZATION_FEATURE_PARAM,
@@ -595,19 +595,19 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.logic.params.DIMENSIONALITY_PARAM,
             str(self.ui.dimensionalitySpinBox.value),
         )
-        self._parameterNode.SetParameter(
-            self.logic.params.HISTOGRAM_MATCHING_PARAM,
-            str(int(self.ui.histogramMatchingCheckBox.checked)),
-        )
-        self._parameterNode.SetParameter(
-            self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM,
-            ",".join(
-                [
-                    str(self.ui.winsorizeRangeWidget.minimumValue),
-                    str(self.ui.winsorizeRangeWidget.maximumValue),
-                ]
-            ),
-        )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.HISTOGRAM_MATCHING_PARAM,
+        #     str(int(self.ui.histogramMatchingCheckBox.checked)),
+        # )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM,
+        #     ",".join(
+        #         [
+        #             str(self.ui.winsorizeRangeWidget.minimumValue),
+        #             str(self.ui.winsorizeRangeWidget.maximumValue),
+        #         ]
+        #     ),
+        # )
         self._parameterNode.SetParameter(
             self.logic.params.COMPUTATION_PRECISION_PARAM,
             self.ui.computationPrecisionComboBox.currentText,
