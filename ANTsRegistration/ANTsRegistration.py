@@ -1237,7 +1237,64 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             gwtb.SetInitialTemplateImage(initialTemplateImage)
         gwtb.SetPathList(pathList)
 
+        stage = stages[0]
         # TODO: construct pairwise registration instance and set it to gwtb
+        ants_reg = itk.ANTSRegistration[
+            type(firstImage), template_type, precision_type
+        ].New()
+
+        transform_type = stage["transformParameters"]["transform"]
+        if transform_type == "SyN":
+            transform_type = "SyNOnly"
+        ants_reg.SetTypeOfTransform(transform_type)
+        transform_settings = stage["transformParameters"]["settings"].split(",")
+        ants_reg.SetGradientStep(float(transform_settings[0]))
+
+        
+
+        assert len(stage["metrics"]) == 1
+        metric_type = stage["metrics"][0]["type"]
+
+        metric_settings = stage["metrics"][0]["settings"].split(",")
+        if metric_type in ["MI", "Mattes"]:
+            ants_reg.SetNumberOfBins(int(metric_settings[1]))
+        else:
+            ants_reg.SetRadius(int(metric_settings[1]))
+        # if len(metric_settings) > 2:
+        #     ants_reg.SetSamplingStrategy(metric_settings[2])  # not exposed
+        if len(metric_settings) > 3:
+            ants_reg.SetSamplingRate(float(metric_settings[3]))
+        if len(metric_settings) > 4:
+            ants_reg.SetUseGradientFilter(bool(metric_settings[4]))
+        iterations = []
+        shrink_factors = []
+        sigmas = []
+        for step in stage["levels"]["steps"]:
+            iterations.append(step["convergence"])
+            shrink_factors.append(step["shrinkFactors"])
+            sigmas.append(step["smoothingSigmas"])
+        ants_reg.SetShrinkFactors(shrink_factors)
+        ants_reg.SetSmoothingSigmas(sigmas)
+        ants_reg.SetSmoothingInPhysicalUnits(
+            stage["levels"]["smoothingSigmasUnit"] == "mm"
+        )
+        # not exposed:
+        # stage["levels"]["smoothingSigmasUnit"]
+        # stage["levels"]["convergenceThreshold"]
+        if transform_type in [
+            "Rigid",
+            "Affine",
+            "CompositeAffine",
+            "Similarity",
+            "Translation",
+        ]:
+            ants_reg.SetAffineMetric(metric_type)
+            ants_reg.SetAffineIterations(iterations)
+        else:
+            ants_reg.SetSynMetric(metric_type)
+            ants_reg.SetSynIterations(iterations)
+
+        gwtb.SetPairwiseRegistration(ants_reg)
 
         logging.info("Running ANTSGroupwiseBuildTemplate")
         slicer.app.processEvents()
