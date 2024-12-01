@@ -96,7 +96,7 @@ class ITKANTsCommonLogic(ScriptedLoadableModuleLogic):
             if not install:
                 logging.info("Installation of ITK aborted by the user")
                 return None
-        slicer.util.pip_install("itk-ants>=0.6.0")
+        slicer.util.pip_install("itk-ants>=0.7.0")
         import itk
 
         logging.info(f"ITK {itk.__version__} installed correctly")

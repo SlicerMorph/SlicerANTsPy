@@ -27,6 +27,7 @@ from slicer import (
 
 from antsRegistrationLib.Widgets.tables import StagesTable, MetricsTable, LevelsTable
 
+
 def itkTransformFromTransformNode(transformNode):
     """Convert the MRML transform node to an ITK transform."""
     import itk
@@ -36,7 +37,7 @@ def itkTransformFromTransformNode(transformNode):
 
     tempFilePath = os.path.join(
         slicer.app.temporaryPath,
-        "tempTransform_{0}.h5".format(time.time()),
+        "tempTransform_{0}.tfm".format(time.time()),
     )
     storageNode = slicer.vtkMRMLTransformStorageNode()
     storageNode.SetFileName(tempFilePath)
@@ -46,6 +47,7 @@ def itkTransformFromTransformNode(transformNode):
     if len(itkTransform) == 1:
         itkTransform = itkTransform[0]
     return itkTransform
+
 
 def transformNodeFromItkTransform(itkTransform, transformNode=None):
     """Convert the ITK transform to a MRML transform node."""
@@ -65,11 +67,13 @@ def transformNodeFromItkTransform(itkTransform, transformNode=None):
             transformNode = slicer.vtkMRMLTransformNode()
             slicer.mrmlScene.AddNode(transformNode)
         else:
-            raise ValueError("Unsupported transform type: {0}".format(type(itkTransform)))
+            raise ValueError(
+                "Unsupported transform type: {0}".format(type(itkTransform))
+            )
 
     tempFilePath = os.path.join(
         slicer.app.temporaryPath,
-        "tempTransform_{0}.h5".format(time.time()),
+        "tempTransform_{0}.tfm".format(time.time()),
     )
     itk.transformwrite(itkTransform, tempFilePath)
     storageNode = slicer.vtkMRMLTransformStorageNode()
@@ -78,6 +82,7 @@ def transformNodeFromItkTransform(itkTransform, transformNode=None):
     os.remove(tempFilePath)
 
     return transformNode
+
 
 class ANTsRegistration(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
@@ -199,10 +204,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.stagesTableWidget.view.selectionModel().selectionChanged.connect(
             self.updateParameterNodeFromGUI
         )
-        self.ui.outputInterpolationComboBox.connect(
-            "currentIndexChanged(int)", self.updateParameterNodeFromGUI
+        # self.ui.outputInterpolationComboBox.connect(
+        #     "currentIndexChanged(int)", self.updateParameterNodeFromGUI
+        # )
+        self.ui.outputForwardTransformComboBox.connect(
+            "currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI
         )
-        self.ui.outputTransformComboBox.connect(
+        self.ui.outputInverseTransformComboBox.connect(
             "currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI
         )
         self.ui.outputVolumeComboBox.connect(
@@ -217,15 +225,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.dimensionalitySpinBox.connect(
             "valueChanged(int)", self.updateParameterNodeFromGUI
         )
-        self.ui.histogramMatchingCheckBox.connect(
-            "toggled(bool)", self.updateParameterNodeFromGUI
-        )
-        self.ui.outputDisplacementFieldCheckBox.connect(
-            "toggled(bool)", self.updateParameterNodeFromGUI
-        )
-        self.ui.winsorizeRangeWidget.connect(
-            "valuesChanged(double,double)", self.updateParameterNodeFromGUI
-        )
+        # self.ui.histogramMatchingCheckBox.connect(
+        #     "toggled(bool)", self.updateParameterNodeFromGUI
+        # )
+        # self.ui.outputDisplacementFieldCheckBox.connect(
+        #     "toggled(bool)", self.updateParameterNodeFromGUI
+        # )
+        # self.ui.winsorizeRangeWidget.connect(
+        #     "valuesChanged(double,double)", self.updateParameterNodeFromGUI
+        # )
         self.ui.computationPrecisionComboBox.connect(
             "currentIndexChanged(int)", self.updateParameterNodeFromGUI
         )
@@ -291,6 +299,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.runRegistrationButton.connect(
             "clicked(bool)", self.onRunRegistrationButton
         )
+        self.ui.clearButton.connect("clicked(bool)", self.onClearButton)
+        self.ui.removeButton.clicked.connect(self.onRemoveImagePaths)
+        self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
+        self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
+        self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
+        self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanBuild)
+        self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanBuild))
+
+        self.ui.runGroupRegistrationButton.clicked.connect(self.runGroupRegistration)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -317,6 +334,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
+        self.logic.importITK()
 
     def exit(self):
         """
@@ -417,22 +435,29 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )
         self.updateStagesGUIFromParameter()
 
-        self.ui.outputTransformComboBox.setCurrentNode(
-            self._parameterNode.GetNodeReference(self.logic.params.OUTPUT_TRANSFORM_REF)
+        self.ui.outputForwardTransformComboBox.setCurrentNode(
+            self._parameterNode.GetNodeReference(
+                self.logic.params.OUTPUT_FORWARD_TRANSFORM_REF
+            )
+        )
+        self.ui.outputInverseTransformComboBox.setCurrentNode(
+            self._parameterNode.GetNodeReference(
+                self.logic.params.OUTPUT_INVERSE_TRANSFORM_REF
+            )
         )
         self.ui.outputVolumeComboBox.setCurrentNode(
             self._parameterNode.GetNodeReference(self.logic.params.OUTPUT_VOLUME_REF)
         )
-        self.ui.outputInterpolationComboBox.currentText = (
-            self._parameterNode.GetParameter(
-                self.logic.params.OUTPUT_INTERPOLATION_PARAM
-            )
-        )
-        self.ui.outputDisplacementFieldCheckBox.checked = int(
-            self._parameterNode.GetParameter(
-                self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM
-            )
-        )
+        # self.ui.outputInterpolationComboBox.currentText = (
+        #     self._parameterNode.GetParameter(
+        #         self.logic.params.OUTPUT_INTERPOLATION_PARAM
+        #     )
+        # )
+        # self.ui.outputDisplacementFieldCheckBox.checked = int(
+        #     self._parameterNode.GetParameter(
+        #         self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM
+        #     )
+        # )
 
         self.ui.initialTransformTypeComboBox.currentIndex = (
             int(
@@ -456,25 +481,26 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.dimensionalitySpinBox.value = int(
             self._parameterNode.GetParameter(self.logic.params.DIMENSIONALITY_PARAM)
         )
-        self.ui.histogramMatchingCheckBox.checked = int(
-            self._parameterNode.GetParameter(self.logic.params.HISTOGRAM_MATCHING_PARAM)
-        )
-        winsorizeIntensities = self._parameterNode.GetParameter(
-            self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM
-        ).split(",")
-        self.ui.winsorizeRangeWidget.setMinimumValue(float(winsorizeIntensities[0]))
-        self.ui.winsorizeRangeWidget.setMaximumValue(float(winsorizeIntensities[1]))
-        self.ui.computationPrecisionComboBox.currentText = (
-            self._parameterNode.GetParameter(
-                self.logic.params.COMPUTATION_PRECISION_PARAM
-            )
-        )
+        # self.ui.histogramMatchingCheckBox.checked = int(
+        #     self._parameterNode.GetParameter(self.logic.params.HISTOGRAM_MATCHING_PARAM)
+        # )
+        # winsorizeIntensities = self._parameterNode.GetParameter(
+        #     self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM
+        # ).split(",")
+        # self.ui.winsorizeRangeWidget.setMinimumValue(float(winsorizeIntensities[0]))
+        # self.ui.winsorizeRangeWidget.setMaximumValue(float(winsorizeIntensities[1]))
+        # self.ui.computationPrecisionComboBox.currentText = (
+        #     self._parameterNode.GetParameter(
+        #         self.logic.params.COMPUTATION_PRECISION_PARAM
+        #     )
+        # )
 
         self.ui.runRegistrationButton.enabled = (
             self.ui.fixedImageNodeComboBox.currentNodeID
             and self.ui.movingImageNodeComboBox.currentNodeID
             and (
-                self.ui.outputTransformComboBox.currentNodeID
+                self.ui.outputForwardTransformComboBox.currentNodeID
+                or self.ui.outputInverseTransformComboBox.currentNodeID
                 or self.ui.outputVolumeComboBox.currentNodeID
             )
         )
@@ -536,21 +562,25 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )
 
         self._parameterNode.SetNodeReferenceID(
-            self.logic.params.OUTPUT_TRANSFORM_REF,
-            self.ui.outputTransformComboBox.currentNodeID,
+            self.logic.params.OUTPUT_FORWARD_TRANSFORM_REF,
+            self.ui.outputForwardTransformComboBox.currentNodeID,
+        )
+        self._parameterNode.SetNodeReferenceID(
+            self.logic.params.OUTPUT_INVERSE_TRANSFORM_REF,
+            self.ui.outputInverseTransformComboBox.currentNodeID,
         )
         self._parameterNode.SetNodeReferenceID(
             self.logic.params.OUTPUT_VOLUME_REF,
             self.ui.outputVolumeComboBox.currentNodeID,
         )
-        self._parameterNode.SetParameter(
-            self.logic.params.OUTPUT_INTERPOLATION_PARAM,
-            self.ui.outputInterpolationComboBox.currentText,
-        )
-        self._parameterNode.SetParameter(
-            self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM,
-            str(int(self.ui.outputDisplacementFieldCheckBox.checked)),
-        )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.OUTPUT_INTERPOLATION_PARAM,
+        #     self.ui.outputInterpolationComboBox.currentText,
+        # )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.CREATE_DISPLACEMENT_FIELD_PARAM,
+        #     str(int(self.ui.outputDisplacementFieldCheckBox.checked)),
+        # )
 
         self._parameterNode.SetParameter(
             self.logic.params.INITIALIZATION_FEATURE_PARAM,
@@ -565,19 +595,19 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.logic.params.DIMENSIONALITY_PARAM,
             str(self.ui.dimensionalitySpinBox.value),
         )
-        self._parameterNode.SetParameter(
-            self.logic.params.HISTOGRAM_MATCHING_PARAM,
-            str(int(self.ui.histogramMatchingCheckBox.checked)),
-        )
-        self._parameterNode.SetParameter(
-            self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM,
-            ",".join(
-                [
-                    str(self.ui.winsorizeRangeWidget.minimumValue),
-                    str(self.ui.winsorizeRangeWidget.maximumValue),
-                ]
-            ),
-        )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.HISTOGRAM_MATCHING_PARAM,
+        #     str(int(self.ui.histogramMatchingCheckBox.checked)),
+        # )
+        # self._parameterNode.SetParameter(
+        #     self.logic.params.WINSORIZE_IMAGE_INTENSITIES_PARAM,
+        #     ",".join(
+        #         [
+        #             str(self.ui.winsorizeRangeWidget.minimumValue),
+        #             str(self.ui.winsorizeRangeWidget.maximumValue),
+        #         ]
+        #     ),
+        # )
         self._parameterNode.SetParameter(
             self.logic.params.COMPUTATION_PRECISION_PARAM,
             self.ui.computationPrecisionComboBox.currentText,
@@ -716,6 +746,109 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         parameters = self.logic.createProcessParameters(self._parameterNode)
         self.logic.process(**parameters)
 
+    def onClearButton(self):
+        self.ui.inputFileListWidget.clear()
+        self.ui.clearButton.enabled = False
+
+    def onRemoveImagePaths(self):
+        selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
+
+        for i in selectedItemRows:
+            self.ui.inputFileListWidget.takeItem(i)
+
+    def onBumpImagePath(self):
+        selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
+
+        for i in selectedItemRows:
+            item = self.ui.inputFileListWidget.takeItem(i)
+            self.ui.inputFileListWidget.insertItem(0, item)
+
+        self.ui.inputFileListWidget.setCurrentRow(0)
+
+    def onGoToSettings(self):
+        self.ui.tabsWidget.setCurrentWidget(self.ui.settingsTab)
+
+
+    def onSelectImages(self):
+        fileDialog = qt.QFileDialog()
+        fileDialog.setFileMode(
+            qt.QFileDialog.ExistingFiles
+        )  # Set to open an existing file
+        fileDialog.setNameFilter(
+            "Common image types(*.nii.gz *.nrrd *.mha);;All files (*.*)"
+        )  # Set file filter
+        if fileDialog.exec_():
+            inputFilePaths = list(fileDialog.selectedFiles())
+        for path in inputFilePaths:
+            self.ui.inputFileListWidget.addItem(path)
+        self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
+        self.checkCanBuild()
+
+    
+    def checkCanBuild(self):
+        self.ui.runTemplateBuilding.enabled = self.ui.inputFileListWidget.count !=0 and self.ui.outTemplateComboBox.currentNode()
+    
+    def onRunTemplateBuilding(self):
+        self.ui.runTemplateBuilding.enabled = False
+        self.ui.runTemplateBuilding.text = "Template building in progess"
+        slicer.app.processEvents()
+        try:
+            parameters = self.logic.createProcessParameters(self._parameterNode)
+            pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+            self.logic.buildTemplate(
+                self.ui.initialTemplateComboBox.currentNode(), 
+                pathList, 
+                self.ui.outTemplateComboBox.currentNode(), 
+                parameters['stages'], 
+                parameters['generalSettings']
+            )
+            self.ui.runTemplateBuilding.enabled = True
+            self.ui.runTemplateBuilding.text = "Run Template Building"
+            slicer.app.processEvents()
+        except Exception as e:
+            self.ui.runTemplateBuilding.enabled = True
+            self.ui.runTemplateBuilding.text = "Run Template Building"
+            slicer.app.processEvents()
+            raise e
+        
+
+    def runGroupRegistration(self):
+        path = self.ui.inputDirectoryButton.directory
+        outputPath  = self.ui.outputDirectoryButton.directory
+        filePaths = []
+        extensions = ['.nrrd', '.mha', '.nii.gz']
+        for file in os.listdir(path):
+            for ext in extensions:
+                if file.endswith(ext):
+                    filePaths.append(os.path.join(path, file))
+                    break
+
+        for filePath in filePaths:
+            print(filePath)
+            moving_volume = slicer.util.loadVolume(filePath)
+            self.ui.fixedImageNodeComboBox.setCurrentNode(self.ui.inTemplateComboBox.currentNode())
+            self.ui.movingImageNodeComboBox.setCurrentNode(moving_volume)
+            transformed_volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+            forward_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
+            inverse_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
+            transformed_volume.SetName(moving_volume.GetName() + '-transformed')
+            forward_transform.SetName(moving_volume.GetName() + '-forward')
+            inverse_transform.SetName(moving_volume.GetName() + '-inverse')
+            self.ui.outputVolumeComboBox.setCurrentNode(transformed_volume)
+            self.ui.outputForwardTransformComboBox.setCurrentNode(forward_transform)
+            self.ui.outputInverseTransformComboBox.setCurrentNode(inverse_transform)
+            self.onRunRegistrationButton()
+            slicer.util.saveNode(transformed_volume, os.path.join(outputPath, transformed_volume.GetName() +".nii.gz"))
+            slicer.util.saveNode(forward_transform, os.path.join(outputPath, forward_transform.GetName() +".tfm"))
+            slicer.util.saveNode(inverse_transform  , os.path.join(outputPath, inverse_transform.GetName() +"..tfm"))
+            slicer.mrmlScene.RemoveNode(moving_volume)
+            slicer.mrmlScene.RemoveNode(transformed_volume)
+            slicer.mrmlScene.RemoveNode(forward_transform)
+            slicer.mrmlScene.RemoveNode(inverse_transform)
+
+
+
+
     def onOpenPresetsDirectoryButtonClicked(self):
         import platform, subprocess
 
@@ -740,7 +873,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
     @dataclass
     class params:
-        OUTPUT_TRANSFORM_REF = "OutputTransform"
+        OUTPUT_FORWARD_TRANSFORM_REF = "OutputForwardTransform"
+        OUTPUT_INVERSE_TRANSFORM_REF = "OutputInverseTransform"
         OUTPUT_VOLUME_REF = "OutputVolume"
         INITIAL_TRANSFORM_REF = "InitialTransform"
         OUTPUT_INTERPOLATION_PARAM = "OutputInterpolation"
@@ -796,8 +930,14 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         if not parameterNode.GetParameter(self.params.CURRENT_STAGE_PARAM):
             parameterNode.SetParameter(self.params.CURRENT_STAGE_PARAM, "0")
 
-        if not parameterNode.GetNodeReference(self.params.OUTPUT_TRANSFORM_REF):
-            parameterNode.SetNodeReferenceID(self.params.OUTPUT_TRANSFORM_REF, "")
+        if not parameterNode.GetNodeReference(self.params.OUTPUT_FORWARD_TRANSFORM_REF):
+            parameterNode.SetNodeReferenceID(
+                self.params.OUTPUT_FORWARD_TRANSFORM_REF, ""
+            )
+        if not parameterNode.GetNodeReference(self.params.OUTPUT_INVERSE_TRANSFORM_REF):
+            parameterNode.SetNodeReferenceID(
+                self.params.OUTPUT_INVERSE_TRANSFORM_REF, ""
+            )
         if not parameterNode.GetNodeReference(self.params.OUTPUT_VOLUME_REF):
             parameterNode.SetNodeReferenceID(self.params.OUTPUT_VOLUME_REF, "")
         if not parameterNode.GetParameter(self.params.OUTPUT_INTERPOLATION_PARAM):
@@ -877,8 +1017,11 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             )
 
         parameters["outputSettings"] = {}
-        parameters["outputSettings"]["transform"] = paramNode.GetNodeReference(
-            self.params.OUTPUT_TRANSFORM_REF
+        parameters["outputSettings"]["forwardTransform"] = paramNode.GetNodeReference(
+            self.params.OUTPUT_FORWARD_TRANSFORM_REF
+        )
+        parameters["outputSettings"]["inverseTransform"] = paramNode.GetNodeReference(
+            self.params.OUTPUT_INVERSE_TRANSFORM_REF
         )
         parameters["outputSettings"]["volume"] = paramNode.GetNodeReference(
             self.params.OUTPUT_VOLUME_REF
@@ -948,18 +1091,26 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         fixedImage = slicer.util.itkImageFromVolume(stages[0]["metrics"][0]["fixed"])
         movingImage = slicer.util.itkImageFromVolume(stages[0]["metrics"][0]["moving"])
 
-        initial_itk_transform = itk.AffineTransform[precision_type, fixedImage.ndim].New()  # not wrapped for float in 5.3
+        initial_itk_transform = itk.AffineTransform[
+            precision_type, fixedImage.ndim
+        ].New()
         initial_itk_transform.SetIdentity()
         if "initialTransformNode" in initialTransformSettings:
-            print("Passing Slicer nodes to ITK filters is not yet implemented")
-            # initial_itk_transform = itkTransformFromTransformNode(initialTransformSettings["initialTransformNode"])
+            if initialTransformSettings["initialTransformNode"]:
+                initial_itk_transform = itkTransformFromTransformNode(
+                    initialTransformSettings["initialTransformNode"]
+                )
         elif "initializationFeature" in initialTransformSettings:
             print("This initialization is not yet implemented")
             # use itk.CenteredTransformInitializer to construct initial transform
 
         slicer.app.processEvents()
         startTime = time.time()
-        ants_reg = itk.ANTSRegistration[type(fixedImage), type(movingImage), precision_type].New()
+        ants_reg = itk.ANTSRegistration[
+            type(fixedImage), type(movingImage), precision_type
+        ].New()
+
+        
         for stage_index, stage in enumerate(stages):
             ants_reg.SetFixedImage(fixedImage)
             ants_reg.SetMovingImage(movingImage)
@@ -996,7 +1147,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 ants_reg.SetSamplingRate(float(metric_settings[3]))
             if len(metric_settings) > 4:
                 ants_reg.SetUseGradientFilter(bool(metric_settings[4]))
-
             iterations = []
             shrink_factors = []
             sigmas = []
@@ -1012,7 +1162,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             # not exposed:
             # stage["levels"]["smoothingSigmasUnit"]
             # stage["levels"]["convergenceThreshold"]
-
             if transform_type in [
                 "Rigid",
                 "Affine",
@@ -1025,7 +1174,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             else:
                 ants_reg.SetSynMetric(metric_type)
                 ants_reg.SetSynIterations(iterations)
-
             if stage["masks"]["fixed"] is not None and stage["masks"]["fixed"] != "":
                 ants_reg.SetFixedImageMask(
                     slicer.util.itkImageFromVolume(stage["masks"]["fixed"])
@@ -1034,17 +1182,21 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 ants_reg.SetMovingImageMask(
                     slicer.util.itkImageFromVolume(stage["masks"]["moving"])
                 )
-
             ants_reg.Update()
             initial_itk_transform = ants_reg.GetForwardTransform()
             slicer.app.processEvents()
             # TODO: update progress bar
-
-        outTransform = ants_reg.GetForwardTransform()
-        print(outTransform)
+        forwardTransform = ants_reg.GetForwardTransform()
+        inverseTransform = ants_reg.GetInverseTransform()
         slicer.app.processEvents()
-        if outputSettings["transform"] is not None:
-            transformNodeFromItkTransform(outTransform, outputSettings["transform"])
+        if outputSettings["forwardTransform"] is not None:
+            transformNodeFromItkTransform(
+                forwardTransform, outputSettings["forwardTransform"]
+            )
+        if outputSettings["inverseTransform"] is not None:
+            transformNodeFromItkTransform(
+                inverseTransform, outputSettings["inverseTransform"]
+            )
 
         if outputSettings["volume"] is not None:
             itkImage = ants_reg.GetWarpedMovingImage()
@@ -1055,6 +1207,108 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
+
+    def buildTemplate(
+        self, initialTemplate, pathList, outputTemplate, stages, generalSettings
+    ):
+        if len(stages) > 1:
+            logging.error(
+                "Template building is not yet implemented for multiple stages"
+            )
+            return
+
+        logging.info("Preparing to build the template image")
+        itk = self.itk
+        precision_type = itk.F
+        if generalSettings["computationPrecision"] == "double":
+            precision_type = itk.D
+
+        # read first image - it will be used as a reference for image grid, pixel type, and dimensionality
+        itk = self.itk
+        firstImage = itk.imread(pathList[0])
+
+        template_type = type(firstImage)
+        if initialTemplate is not None:
+            initialTemplateImage = slicer.util.itkImageFromVolume(initialTemplate)
+            template_type = type(initialTemplateImage)
+
+        gwtb = itk.ANTSGroupwiseBuildTemplate[type(firstImage), template_type, precision_type].New()
+        if initialTemplate is not None:
+            gwtb.SetInitialTemplateImage(initialTemplateImage)
+        gwtb.SetPathList(pathList)
+
+        stage = stages[0]
+        # TODO: construct pairwise registration instance and set it to gwtb
+        ants_reg = itk.ANTSRegistration[
+            type(firstImage), template_type, precision_type
+        ].New()
+
+        transform_type = stage["transformParameters"]["transform"]
+        if transform_type == "SyN":
+            transform_type = "SyNOnly"
+        ants_reg.SetTypeOfTransform(transform_type)
+        transform_settings = stage["transformParameters"]["settings"].split(",")
+        ants_reg.SetGradientStep(float(transform_settings[0]))
+
+        
+
+        assert len(stage["metrics"]) == 1
+        metric_type = stage["metrics"][0]["type"]
+
+        metric_settings = stage["metrics"][0]["settings"].split(",")
+        if metric_type in ["MI", "Mattes"]:
+            ants_reg.SetNumberOfBins(int(metric_settings[1]))
+        else:
+            ants_reg.SetRadius(int(metric_settings[1]))
+        # if len(metric_settings) > 2:
+        #     ants_reg.SetSamplingStrategy(metric_settings[2])  # not exposed
+        if len(metric_settings) > 3:
+            ants_reg.SetSamplingRate(float(metric_settings[3]))
+        if len(metric_settings) > 4:
+            ants_reg.SetUseGradientFilter(bool(metric_settings[4]))
+        iterations = []
+        shrink_factors = []
+        sigmas = []
+        for step in stage["levels"]["steps"]:
+            iterations.append(step["convergence"])
+            shrink_factors.append(step["shrinkFactors"])
+            sigmas.append(step["smoothingSigmas"])
+        ants_reg.SetShrinkFactors(shrink_factors)
+        ants_reg.SetSmoothingSigmas(sigmas)
+        ants_reg.SetSmoothingInPhysicalUnits(
+            stage["levels"]["smoothingSigmasUnit"] == "mm"
+        )
+        # not exposed:
+        # stage["levels"]["smoothingSigmasUnit"]
+        # stage["levels"]["convergenceThreshold"]
+        if transform_type in [
+            "Rigid",
+            "Affine",
+            "CompositeAffine",
+            "Similarity",
+            "Translation",
+        ]:
+            ants_reg.SetAffineMetric(metric_type)
+            ants_reg.SetAffineIterations(iterations)
+        else:
+            ants_reg.SetSynMetric(metric_type)
+            ants_reg.SetSynIterations(iterations)
+
+        gwtb.SetPairwiseRegistration(ants_reg)
+
+        logging.info("Running ANTSGroupwiseBuildTemplate")
+        slicer.app.processEvents()
+        startTime = time.time()
+        gwtb.Update()
+        stopTime = time.time()
+        logging.info(f"ANTSGroupwiseBuildTemplate completed in {stopTime-startTime:.2f} seconds")
+
+        if outputTemplate is not None:
+            itkImage = gwtb.GetOutput()
+            slicer.util.updateVolumeFromITKImage(outputTemplate, itkImage)
+            slicer.util.setSliceViewerLayers(
+                background=outputTemplate, fit=True, rotateToVolumePlane=True
+            )
 
 
 class PresetManager:
@@ -1142,8 +1396,15 @@ class ANTsRegistrationTest(ScriptedLoadableModuleTest):
         fixed = sampleDataLogic.downloadMRBrainTumor1()
         moving = sampleDataLogic.downloadMRBrainTumor2()
 
-        initialTransform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
-        outputTransform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
+        initialTransform = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLLinearTransformNode"
+        )
+        outputForwardTransform = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLTransformNode"
+        )
+        outputInverseTransform = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLTransformNode"
+        )
         outputVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
 
         logic = ANTsRegistrationLogic()
@@ -1158,10 +1419,12 @@ class ANTsRegistrationTest(ScriptedLoadableModuleTest):
             stage["levels"]["convergenceThreshold"] = 1
             stage["levels"]["convergenceWindowSize"] = 5
 
-        presetParameters["initialTransformSettings"]["initialTransformNode"] = initialTransform
-        presetParameters["outputSettings"]["transform"] = outputTransform
+        presetParameters["initialTransformSettings"][
+            "initialTransformNode"
+        ] = initialTransform
+        presetParameters["outputSettings"]["forwardTransform"] = outputForwardTransform
+        presetParameters["outputSettings"]["inverseTransform"] = outputInverseTransform
         presetParameters["outputSettings"]["volume"] = outputVolume
-        presetParameters["outputSettings"]["transform"] = None
         presetParameters["outputSettings"]["log"] = None
 
         logic.process(**presetParameters)
