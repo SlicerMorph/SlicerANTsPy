@@ -513,7 +513,7 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0" colspan="2">
+       <item row="2" column="0" colspan="2">
         <widget class="ctkCollapsibleButton" name="CollapsibleButton_2">
          <property name="text">
           <string>View Input Image List</string>
@@ -528,10 +528,64 @@
          </layout>
         </widget>
        </item>
-       <item row="2" column="0" colspan="2">
-        <widget class="QPushButton" name="jacobianPopulateButton">
+       <item row="3" column="0" colspan="2">
+        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
+         <property name="title">
+          <string>Covariate Options</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_8">
+          <item>
+           <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
+            <property name="title">
+             <string>Generate new covariate table template</string>
+            </property>
+            <layout class="QHBoxLayout" name="horizontalLayout_3">
+             <item>
+              <widget class="QLabel" name="label_5">
+               <property name="text">
+                <string>Factor Names</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="factorLineEdit"/>
+             </item>
+             <item>
+              <widget class="QPushButton" name="generateTemplateButton">
+               <property name="text">
+                <string>Generate</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_3">
+            <property name="title">
+             <string>Import Covariates table</string>
+            </property>
+            <layout class="QHBoxLayout" name="horizontalLayout_4">
+             <item>
+              <widget class="QLabel" name="label_16">
+               <property name="text">
+                <string>Select path to covariates table:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="ctkPathLineEdit" name="covariatePathEdit"/>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QPushButton" name="generateJacobianButton">
          <property name="text">
-          <string>Populate image list</string>
+          <string>Generate Jacobian Determinant images</string>
          </property>
         </widget>
        </item>
@@ -958,9 +1012,20 @@
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>ctkCollapsibleGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>ctkCollapsibleGroupBox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>ctkDirectoryButton</class>
    <extends>QWidget</extends>
    <header>ctkDirectoryButton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkPathLineEdit</class>
+   <extends>QWidget</extends>
+   <header>ctkPathLineEdit.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLNodeComboBox</class>
