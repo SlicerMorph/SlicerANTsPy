@@ -341,6 +341,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
         self.logic.importITK()
+        self.logic.installANTsPyX()
 
     def exit(self):
         """
@@ -1396,9 +1397,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
     
     def generateJacobianDeterminantImage(self, path, templatePath, displacementPath, jacobianPath):
-        # load forward transform
-        # save/load template image
-        print(path)
         itk = self.itk
         forwardTransform = itk.transformread(path)[0]
         templateImage = itk.imread(templatePath)
@@ -1411,6 +1409,13 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         jacobian_determinant = itk.displacement_field_jacobian_determinant_filter(displacement_field)
         itk.imwrite(jacobian_determinant, jacobianPath, compression=True)
 
+    def installANTsPyX(self):
+
+        try:
+            import ants
+            print('ANTsPyX already installed')
+        except:
+            slicer.util.pip_install('antspyx')
 
 class PresetManager:
     def __init__(self):
