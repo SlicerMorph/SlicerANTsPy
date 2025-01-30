@@ -322,6 +322,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             qt.QItemSelection(),
         )
 
+        self.ui.jacobianPopulateButton.clicked.connect(self.populateJacobianInputs)
+
     def cleanup(self):
         """
         Called when the application closes and the module widget is destroyed.
@@ -859,6 +861,23 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             subprocess.Popen(["open", presetPath])
         else:
             subprocess.Popen(["xdg-open", presetPath])
+
+
+    def populateJacobianInputs(self):
+
+        inputFilePath = self.ui.jacobianInputDirectory.directory
+
+        filePaths = []
+        extensions = ['.nrrd', '.mha', '.nii.gz']
+        for file in os.listdir(inputFilePath):
+            for ext in extensions:
+                if file.endswith(ext):
+                    filePaths.append(os.path.join(inputFilePath, file))
+                    break
+
+        for path in filePaths:
+
+            self.ui.jacobianInputListWidget.addItem(os.path.basename(path))
 
 
 class ANTsRegistrationLogic(ITKANTsCommonLogic):
