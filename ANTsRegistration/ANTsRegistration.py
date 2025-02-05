@@ -869,6 +869,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def populateJacobianInputs(self):
+        print('populating images')
         self.ui.jacobianInputListWidget.clear()
         inputFilePath = self.ui.jacobianInputDirectory.directory
 
@@ -938,8 +939,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         templatePath  = os.path.join(slicer.util.tempDirectory(), 'template.nii.gz')
         slicer.util.saveNode(self.ui.jacobianTemplateComboBox.currentNode(), templatePath)
 
-        for i in range(0, len(forwardTransformPaths)):
-            self.logic.generateJacobianDeterminantImage(forwardTransformPaths[i], templatePath, displacementPaths[i], jacobianPaths[i])
+        print('Template saved to temporary path')
+
+        # for i in range(0, len(forwardTransformPaths)):
+        #     print('Generating displacment and determinant images: ' + displacementPaths[i])
+        #     self.logic.generateJacobianDeterminantImage(forwardTransformPaths[i], templatePath, displacementPaths[i], jacobianPaths[i])
+
+        self.logic.jacobianAnalysys(templatePath, jacobianPaths, self.ui.covariatePathEdit.currentPath, self.ui.formulaLineEdit.text)
 
     
 
@@ -1422,8 +1428,22 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
     def jacobianAnalysys(self, templatePath, jacobianPaths, covariatesPath, rformula):
         # In ANTsPy context
         import ants
+        import pandas
+        import statsmodels
+
+        print(templatePath)
 
         template = ants.image_read(templatePath)
+
+        print(covariatesPath)
+
+        df = pandas.read_csv(covariatesPath)
+        print(df)
+        availableFactors = df.columns.to_list()
+        availableFactors.remove('ID')
+
+        print("Factors from csv file: ")
+        print(availableFactors)
 
         # generate the template mask here - check this
         template_seg = ants.kmeans_segmentation(template, 3)['segmentation']
@@ -1433,6 +1453,30 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         for path in jacobianPaths:
             log_jacobian_image_list.append(ants.image_read(path))
+
+        # Create matrix to facilitate statistical analysis
+        log_jacobian = ants.image_list_to_matrix(log_jacobian_image_list, template_gm)
+
+        
+
+        data = {}
+
+        for factor in availableFactors:
+            factorValues = df[factor].to_numpy()
+            data[factor] = factorValues
+
+        covariates = pandas.DataFrame(data)
+
+        print(covariates)
+        print(rformula)
+
+
+        dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula)
+
+        log_jacobian_p_values = dbm['pValues']['pval_log_jacobian']
+        log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
+
+        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_gm)
 
 class PresetManager:
     def __init__(self):

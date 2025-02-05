@@ -548,7 +548,11 @@
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="factorLineEdit"/>
+              <widget class="QLineEdit" name="factorLineEdit">
+               <property name="text">
+                <string>sex, age, condition</string>
+               </property>
+              </widget>
              </item>
              <item>
               <widget class="QPushButton" name="generateTemplateButton">
@@ -579,13 +583,27 @@
             </layout>
            </widget>
           </item>
+          <item>
+           <widget class="QLabel" name="label_21">
+            <property name="text">
+             <string>Rformula for regression</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="formulaLineEdit">
+            <property name="text">
+             <string>condition ~ sex + age + log_jacobian</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
        <item row="4" column="0" colspan="2">
         <widget class="QPushButton" name="generateJacobianButton">
          <property name="text">
-          <string>Generate Jacobian Determinant images</string>
+          <string>Jacobian Analysis</string>
          </property>
         </widget>
        </item>
@@ -1006,6 +1024,18 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>qMRMLNodeComboBox</class>
+   <extends>QWidget</extends>
+   <header>qMRMLNodeComboBox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLWidget</class>
+   <extends>QWidget</extends>
+   <header>qMRMLWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>ctkCollapsibleButton</class>
    <extends>QWidget</extends>
    <header>ctkCollapsibleButton.h</header>
@@ -1026,18 +1056,6 @@
    <class>ctkPathLineEdit</class>
    <extends>QWidget</extends>
    <header>ctkPathLineEdit.h</header>
-  </customwidget>
-  <customwidget>
-   <class>qMRMLNodeComboBox</class>
-   <extends>QWidget</extends>
-   <header>qMRMLNodeComboBox.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>qMRMLWidget</class>
-   <extends>QWidget</extends>
-   <header>qMRMLWidget.h</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>
