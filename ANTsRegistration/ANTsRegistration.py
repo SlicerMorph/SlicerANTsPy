@@ -1412,10 +1412,27 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
     def installANTsPyX(self):
 
         try:
-            import ants
+            import importlib
+            importlib.metadata.version('antspyx')
             print('ANTsPyX already installed')
         except:
             slicer.util.pip_install('antspyx')
+
+
+    def jacobianAnalysys(self, templatePath, jacobianPaths, covariatesPath, rformula):
+        # In ANTsPy context
+        import ants
+
+        template = ants.image_read(templatePath)
+
+        # generate the template mask here - check this
+        template_seg = ants.kmeans_segmentation(template, 3)['segmentation']
+        template_gm = ants.threshold_image(template_seg, 2, 2, 1, 0)
+
+        log_jacobian_image_list = list()
+
+        for path in jacobianPaths:
+            log_jacobian_image_list.append(ants.image_read(path))
 
 class PresetManager:
     def __init__(self):
