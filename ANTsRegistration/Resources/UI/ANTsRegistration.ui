@@ -23,7 +23,7 @@
       <enum>QTabWidget::North</enum>
      </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="pairwiseTab">
       <attribute name="title">
@@ -313,6 +313,30 @@
         </layout>
        </item>
        <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <item>
+          <widget class="QLabel" name="label_23">
+           <property name="text">
+            <string>Transform Type:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="templateTransformTypeComboBox">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="editable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
         <widget class="QPushButton" name="selectImages">
          <property name="text">
           <string>Select input images ...</string>
@@ -390,6 +414,9 @@
            </property>
            <property name="hideChildNodeTypes">
             <stringlist notr="true"/>
+           </property>
+           <property name="baseName">
+            <string>Template</string>
            </property>
            <property name="renameEnabled">
             <bool>true</bool>

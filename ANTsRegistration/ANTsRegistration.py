@@ -400,6 +400,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.CommonSettings.visible = False
         for transformTypes in ANTsPyTransformTypes:
             self.ui.transformTypeComboBox.addItem(transformTypes)
+            self.ui.templateTransformTypeComboBox.addItem(transformTypes)
 
     def cleanup(self):
         """
@@ -889,24 +890,24 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.runTemplateBuilding.enabled = self.ui.inputFileListWidget.count !=0 and self.ui.outTemplateComboBox.currentNode()
     
     def onRunTemplateBuilding(self):
-        self.ui.runTemplateBuilding.enabled = False
+        self.uiWidget.enabled = False
         self.ui.runTemplateBuilding.text = "Template building in progess"
         slicer.app.processEvents()
         try:
             parameters = self.logic.createProcessParameters(self._parameterNode)
-            pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-            self.logic.buildTemplate(
-                self.ui.initialTemplateComboBox.currentNode(), 
-                pathList, 
-                self.ui.outTemplateComboBox.currentNode(), 
-                parameters['stages'], 
-                parameters['generalSettings']
-            )
-            self.ui.runTemplateBuilding.enabled = True
+            with slicer.util.tryWithErrorDisplay("Template building failed Failed."):
+                pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+                self.logic.buildTemplateANTsPy(
+                    self.ui.initialTemplateComboBox.currentNode(), 
+                    pathList, 
+                    self.ui.outTemplateComboBox.currentNode(), 
+                    self.ui.templateTransformTypeComboBox.currentText
+                )
+            self.uiWidget.enabled = True
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
         except Exception as e:
-            self.ui.runTemplateBuilding.enabled = True
+            self.uiWidget.enabled = True
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
             raise e
@@ -1339,6 +1340,25 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
+    
+    def buildTemplateANTsPy(self, initialTemplate, pathList, outputTemplate, transformType):
+        import ants
+        antsInitialTemplate = None
+        if initialTemplate:
+            antsInitialTemplate = antsImageFromNode(initialTemplate)
+
+        imageList = []
+
+        for path in pathList:
+            antsImage = ants.image_read(path)
+            imageList.append(antsImage)
+
+        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType)
+
+        nodeFromANTSImage(antstemplate, outputTemplate)
+
+        slicer.util.setSliceViewerLayers(background=outputTemplate)
+    
     def buildTemplate(
         self, initialTemplate, pathList, outputTemplate, stages, generalSettings
     ):
