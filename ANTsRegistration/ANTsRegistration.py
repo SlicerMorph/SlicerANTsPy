@@ -379,8 +379,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
-        self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanBuild)
-        self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanBuild))
+        self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
+        self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunTemplateBuilding))
+
+        self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
+        self.ui.inputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
+        self.ui.outputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
 
         self.ui.runGroupRegistrationButton.clicked.connect(self.runGroupRegistration)
 
@@ -401,6 +405,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for transformTypes in ANTsPyTransformTypes:
             self.ui.transformTypeComboBox.addItem(transformTypes)
             self.ui.templateTransformTypeComboBox.addItem(transformTypes)
+            self.ui.groupTransformTypeComboBox.addItem(transformTypes)
 
     def cleanup(self):
         """
@@ -415,6 +420,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
         self.logic.installANTsPyX()
+        self.checkCanRunGroupRegistration()
+        self.checkCanRunTemplateBuilding()
 
     def exit(self):
         """
@@ -883,19 +890,24 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for path in inputFilePaths:
             self.ui.inputFileListWidget.addItem(path)
         self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
-        self.checkCanBuild()
+        self.checkCanRunTemplateBuilding()
 
     
-    def checkCanBuild(self):
+    def checkCanRunTemplateBuilding(self):
         self.ui.runTemplateBuilding.enabled = self.ui.inputFileListWidget.count !=0 and self.ui.outTemplateComboBox.currentNode()
+    
+    
+    def checkCanRunGroupRegistration(self):
+
+        filePaths = self.getInputsForGroupRegistration()
+        self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory)
     
     def onRunTemplateBuilding(self):
         self.uiWidget.enabled = False
         self.ui.runTemplateBuilding.text = "Template building in progess"
         slicer.app.processEvents()
         try:
-            parameters = self.logic.createProcessParameters(self._parameterNode)
-            with slicer.util.tryWithErrorDisplay("Template building failed Failed."):
+            with slicer.util.tryWithErrorDisplay("Template building failed."):
                 pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
                 self.logic.buildTemplateANTsPy(
                     self.ui.initialTemplateComboBox.currentNode(), 
@@ -913,9 +925,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             raise e
         
 
-    def runGroupRegistration(self):
+    def getInputsForGroupRegistration(self):
         path = self.ui.inputDirectoryButton.directory
-        outputPath  = self.ui.outputDirectoryButton.directory
         filePaths = []
         extensions = ['.nrrd', '.mha', '.nii.gz']
         for file in os.listdir(path):
@@ -924,28 +935,33 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     filePaths.append(os.path.join(path, file))
                     break
 
-        for filePath in filePaths:
-            print(filePath)
-            moving_volume = slicer.util.loadVolume(filePath)
-            self.ui.fixedImageNodeComboBox.setCurrentNode(self.ui.inTemplateComboBox.currentNode())
-            self.ui.movingImageNodeComboBox.setCurrentNode(moving_volume)
-            transformed_volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-            forward_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
-            inverse_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
-            transformed_volume.SetName(moving_volume.GetName() + '-transformed')
-            forward_transform.SetName(moving_volume.GetName() + '-forward')
-            inverse_transform.SetName(moving_volume.GetName() + '-inverse')
-            self.ui.outputVolumeComboBox.setCurrentNode(transformed_volume)
-            self.ui.outputForwardTransformComboBox.setCurrentNode(forward_transform)
-            self.ui.outputInverseTransformComboBox.setCurrentNode(inverse_transform)
-            self.onRunRegistrationButton()
-            slicer.util.saveNode(transformed_volume, os.path.join(outputPath, transformed_volume.GetName() +".nii.gz"))
-            slicer.util.saveNode(forward_transform, os.path.join(outputPath, forward_transform.GetName() +".tfm"))
-            slicer.util.saveNode(inverse_transform  , os.path.join(outputPath, inverse_transform.GetName() +"..tfm"))
-            slicer.mrmlScene.RemoveNode(moving_volume)
-            slicer.mrmlScene.RemoveNode(transformed_volume)
-            slicer.mrmlScene.RemoveNode(forward_transform)
-            slicer.mrmlScene.RemoveNode(inverse_transform)
+        return filePaths
+    
+    
+    
+    def runGroupRegistration(self):
+        outputPath  = self.ui.outputDirectoryButton.directory
+        filePaths = self.getInputsForGroupRegistration()
+
+        self.uiWidget.enabled = False
+        self.ui.runGroupRegistrationButton.text = "Group registration in progess"
+        slicer.app.processEvents()
+        try:
+            with slicer.util.tryWithErrorDisplay("Group registration failed."):
+                self.logic.groupRegistrationANTsPy(
+                    self.ui.inTemplateComboBox.currentNode(), 
+                    filePaths, 
+                    outputPath, 
+                    self.ui.groupTransformTypeComboBox.currentText
+                )
+            self.uiWidget.enabled = True
+            self.ui.runGroupRegistrationButton.text = "Register"
+            slicer.app.processEvents()
+        except Exception as e:
+            self.uiWidget.enabled = True
+            self.ui.runGroupRegistrationButton.text = "Register"
+            slicer.app.processEvents()
+            raise e
 
 
 
@@ -1340,6 +1356,24 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
+    
+    def groupRegistrationANTsPy(self, template, pathlist, outputDirectory, transformtype):
+        
+        import ants
+        import shutil
+        fixed = antsImageFromNode(template)
+
+        for path in pathlist:
+            name = os.path.splitext(os.path.basename(path))[0]
+            moving = ants.image_read(path)
+            reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=True)
+            forwardName = os.path.join(outputDirectory, name +'-forward.h5')
+            inverseName = os.path.join(outputDirectory, name +'-inverse.h5')
+            transformedName = os.path.join(outputDirectory, name +'-transformed.nii.gz')
+            ants.image_write(reg['warpedmovout'], transformedName)
+            shutil.copy(reg['fwdtransforms'], forwardName)
+            shutil.copy(reg['invtransforms'], inverseName)
+    
     
     def buildTemplateANTsPy(self, initialTemplate, pathList, outputTemplate, transformType):
         import ants
