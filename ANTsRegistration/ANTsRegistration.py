@@ -28,6 +28,36 @@ from slicer import (
 from antsRegistrationLib.Widgets.tables import StagesTable, MetricsTable, LevelsTable
 
 
+ANTsPyTransformTypes  = [ 
+    "Rigid",
+    "Similarity",
+    "Translation",
+    "Affine",
+    "AffineFast",
+    "BOLDAffine",
+    "QuickRigid",
+    "DenseRigid",
+    "BOLDRigid",
+    "antsRegistrationSyNQuick[b]",
+    "antsRegistrationSyNQuick[s]",
+    "antsRegistrationSyNRepro[s]",
+    "antsRegistrationSyN[s]",
+    "SyNBold",
+    "SyNBoldAff",
+    "ElasticSyN",
+    "SyN",
+    "SyNRA",
+    "SyNOnly",
+    "SyNAggro",
+    "SyNCC",
+    "TRSAA",
+    "SyNabp",
+    "SyNLessAggro",
+    "TVMSQ",
+    "TVMSQC",
+]
+
+
 def itkTransformFromTransformNode(transformNode):
     """Convert the MRML transform node to an ITK transform."""
     import itk
@@ -82,6 +112,51 @@ def transformNodeFromItkTransform(itkTransform, transformNode=None):
     os.remove(tempFilePath)
 
     return transformNode
+
+def antsImageFromNode(imageNode):
+    import ants
+    tempFilePath = os.path.join(
+        slicer.app.temporaryPath,
+        "tempImage_{0}.nii.gz".format(time.time()),
+    )
+
+    storageNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
+    storageNode.SetFileName(tempFilePath)
+    storageNode.WriteData(imageNode)
+
+    image = ants.image_read(tempFilePath)
+
+    os.remove(tempFilePath)
+
+    return image
+
+def nodeFromANTSImage(antsImage, imageNode):
+    import ants
+    
+
+
+    tempFilePath = os.path.join(
+        slicer.app.temporaryPath,
+        "tempImage_{0}.nii.gz".format(time.time()),
+    )
+    ants.image_write(antsImage, tempFilePath)
+
+    storageNode = slicer.vtkMRMLVolumeArchetypeStorageNode()
+    storageNode.SetFileName(tempFilePath)
+    storageNode.ReadData(imageNode, True)
+
+    os.remove(tempFilePath)
+
+
+def nodeFromANTSTransform(antsTransformPath, transformNode):
+
+
+
+    storageNode = slicer.vtkMRMLTransformStorageNode()
+    storageNode.SetFileName(antsTransformPath)
+    storageNode.ReadData(transformNode, True)
+
+
 
 
 class ANTsRegistration(ScriptedLoadableModule):
@@ -145,9 +220,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Load widget from .ui file (created by Qt Designer).
         # Additional widgets can be instantiated manually and added to self.layout.
-        uiWidget = slicer.util.loadUI(self.resourcePath("UI/ANTsRegistration.ui"))
-        self.layout.addWidget(uiWidget)
-        self.ui = slicer.util.childWidgetVariables(uiWidget)
+        self.uiWidget = slicer.util.loadUI(self.resourcePath("UI/ANTsRegistration.ui"))
+        self.layout.addWidget(self.uiWidget)
+        self.ui = slicer.util.childWidgetVariables(self.uiWidget)
 
         self.ui.parameterNodeSelector.addAttribute(
             "vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName
@@ -173,7 +248,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
         # "setMRMLScene(vtkMRMLScene*)" slot.
-        uiWidget.setMRMLScene(slicer.mrmlScene)
+        self.uiWidget.setMRMLScene(slicer.mrmlScene)
 
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
@@ -322,6 +397,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             qt.QItemSelection(),
         )
 
+        self.ui.CommonSettings.visible = False
+        for transformTypes in ANTsPyTransformTypes:
+            self.ui.transformTypeComboBox.addItem(transformTypes)
+
     def cleanup(self):
         """
         Called when the application closes and the module widget is destroyed.
@@ -334,7 +413,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
-        self.logic.importITK()
+        self.logic.installANTsPyX()
 
     def exit(self):
         """
@@ -743,8 +822,29 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._updatingGUIFromParameterNode = False
 
     def onRunRegistrationButton(self):
-        parameters = self.logic.createProcessParameters(self._parameterNode)
-        self.logic.process(**parameters)
+        # parameters = self.logic.createProcessParameters(self._parameterNode)
+        # self.logic.process(**parameters)
+
+        try:
+            self.ui.runRegistrationButton.text = "Registration in progress..."
+            self.uiWidget.enabled = False
+            slicer.app.processEvents()
+            with slicer.util.tryWithErrorDisplay("Registration Failed."):
+                fixed = self.ui.fixedImageNodeComboBox.currentNode()
+                moving = self.ui.movingImageNodeComboBox.currentNode()
+                forward = self.ui.outputForwardTransformComboBox.currentNode()
+                inverse = self.ui.outputInverseTransformComboBox.currentNode()
+                warped = self.ui.outputVolumeComboBox.currentNode()
+
+                self.logic.process_ANTsPY(self.ui.transformTypeComboBox.currentText, fixed, moving, forward, inverse, warped)
+            
+            self.ui.runRegistrationButton.text = "Run Registration"
+            self.uiWidget.enabled = True
+            
+        except Exception as e:
+            self.ui.runRegistrationButton.text = "Run Registration"
+            self.uiWidget.enabled = True
+           
 
     def onClearButton(self):
         self.ui.inputFileListWidget.clear()
@@ -1060,6 +1160,37 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         return parameters
 
+    
+    
+    def process_ANTsPY(
+            self,
+            transformType,
+            fixedNode,
+            movingNode,
+            forwardTransformNode,
+            inverseTransformNode,
+            transformedImageNode
+
+    ):
+        import ants
+
+        fixedImage = antsImageFromNode(fixedNode)
+        movingImage = antsImageFromNode(movingNode)
+
+        reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True)
+
+        if forwardTransformNode:
+            nodeFromANTSTransform(reg['fwdtransforms'], forwardTransformNode)
+
+        if inverseTransformNode:
+            nodeFromANTSTransform(reg['invtransforms'], inverseTransformNode)
+
+        if transformedImageNode:
+            nodeFromANTSImage(reg['warpedmovout'], transformedImageNode)
+            slicer.util.setSliceViewerLayers(background = transformedImageNode)
+    
+    
+    
     def process(
         self,
         stages,
@@ -1309,6 +1440,14 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             slicer.util.setSliceViewerLayers(
                 background=outputTemplate, fit=True, rotateToVolumePlane=True
             )
+
+    def installANTsPyX(self):
+
+        try:
+            import ants
+        except:
+            slicer.util.pip_install('antspyx')
+            
 
 
 class PresetManager:
