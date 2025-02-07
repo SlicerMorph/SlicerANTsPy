@@ -975,7 +975,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     filePaths, 
                     outputPath, 
                     self.ui.groupTransformTypeComboBox.currentText,
-                    self.ui.compositeRadioButton.checked
+                    self.ui.compositeRadioButton.checked,
+                    self.ui.forwardCheckBox.checked,
+                    self.ui.inverseCheckBox.checked,
+                    self.ui.transformedCheckBox.checked
                 )
             self.uiWidget.enabled = True
             self.ui.runGroupRegistrationButton.text = "Register"
@@ -1005,6 +1008,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
         files = [os.path.basename(self.ui.jacobianInputListWidget.item(x).text()) for x in range(self.ui.jacobianInputListWidget.count)]
+        cases = [x.remove(self.ui.filePatternLineEdit.text) for x in files]
 
         if numberOfInputFiles<1:
             qt.QMessageBox.critical(slicer.util.mainWindow(),
@@ -1019,13 +1023,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             'Error', 'Please specify at least one factor name to generate a covariate table template')
             logging.debug('No factor names are provided for covariate table template')
             return
-        sortedArray = np.zeros(len(files), dtype={'names':('filename', 'procdist'),'formats':('U50','f8')})
-        sortedArray['filename']=files
+        sortedArray = np.zeros(len(cases), dtype={'names':('filename', 'procdist'),'formats':('U50','f8')})
+        sortedArray['filename']=cases
 
         self.factorTableNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTableNode', 'Factor Table')
         col=self.factorTableNode.AddColumn()
         col.SetName('ID')
-        for i in range(len(files)):
+        for i in range(len(cases)):
             self.factorTableNode.AddEmptyRow()
             self.factorTableNode.SetCellText(i,0,sortedArray['filename'][i])
         for i in range(len(factorList)):
@@ -1440,7 +1444,17 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
     
-    def groupRegistrationANTsPy(self, template, pathlist, outputDirectory, transformtype, writeCompositeTransform=False):
+    def groupRegistrationANTsPy(
+            self, 
+            template, 
+            pathlist, 
+            outputDirectory, 
+            transformtype, 
+            writeCompositeTransform=False, 
+            outputForward=True, 
+            outputInverse=True, 
+            outputTransformed=True
+            ):
         
         import ants
         import shutil
@@ -1451,15 +1465,20 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             moving = ants.image_read(path)
             reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
             if writeCompositeTransform:
-                forwardName = os.path.join(outputDirectory, name +'-forward.h5')
-                inverseName = os.path.join(outputDirectory, name +'-inverse.h5')
-                shutil.copy(reg['fwdtransforms'], forwardName)
-                shutil.copy(reg['invtransforms'], inverseName)
+                if outputForward:
+                    forwardName = os.path.join(outputDirectory, name +'-forward.h5')
+                    shutil.copy(reg['fwdtransforms'], forwardName)
+                if outputInverse:
+                    inverseName = os.path.join(outputDirectory, name +'-inverse.h5')
+                    shutil.copy(reg['invtransforms'], inverseName)
             else:
-                writeTransformSet(outputDirectory, name, 'forward', reg['fwdtransforms'])
-                writeTransformSet(outputDirectory, name, 'inverse', reg['invtransforms'])
-            transformedName = os.path.join(outputDirectory, name +'-transformed.nii.gz')
-            ants.image_write(reg['warpedmovout'], transformedName)
+                if outputForward:
+                    writeTransformSet(outputDirectory, name, 'forward', reg['fwdtransforms'])
+                if outputInverse:
+                    writeTransformSet(outputDirectory, name, 'inverse', reg['invtransforms'])
+            if outputTransformed:
+                transformedName = os.path.join(outputDirectory, name +'-transformed.nii.gz')
+                ants.image_write(reg['warpedmovout'], transformedName)
             
     
     

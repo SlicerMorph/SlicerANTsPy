@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>582</width>
-    <height>945</height>
+    <width>619</width>
+    <height>953</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -483,6 +483,20 @@
          </property>
         </widget>
        </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_24">
+         <property name="text">
+          <string>Tranform Type:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="groupTransformTypeComboBox">
+         <property name="editable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
        <item row="2" column="0">
         <widget class="QLabel" name="label_20">
          <property name="text">
@@ -517,31 +531,10 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
-        <widget class="QPushButton" name="runGroupRegistrationButton">
-         <property name="text">
-          <string>Register</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_24">
-         <property name="text">
-          <string>Tranform Type:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QComboBox" name="groupTransformTypeComboBox">
-         <property name="editable">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
        <item row="4" column="0">
         <widget class="QLabel" name="label_25">
          <property name="text">
-          <string>Output transform as:</string>
+          <string>Output transforms as:</string>
          </property>
         </widget>
        </item>
@@ -568,6 +561,48 @@
            <attribute name="buttonGroup">
             <string notr="true">buttonGroup</string>
            </attribute>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_27">
+         <property name="text">
+          <string>Output: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="2">
+        <widget class="QPushButton" name="runGroupRegistrationButton">
+         <property name="text">
+          <string>Register</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_8">
+         <item>
+          <widget class="QCheckBox" name="forwardCheckBox">
+           <property name="text">
+            <string>Forward Transform</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="inverseCheckBox">
+           <property name="text">
+            <string>Inverse Transform</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="transformedCheckBox">
+           <property name="text">
+            <string>Transformed Volume</string>
+           </property>
           </widget>
          </item>
         </layout>
@@ -648,7 +683,7 @@
              <item>
               <widget class="QLineEdit" name="factorLineEdit">
                <property name="text">
-                <string>condition, sex, age</string>
+                <string>group</string>
                </property>
               </widget>
              </item>
@@ -691,7 +726,7 @@
           <item>
            <widget class="QLineEdit" name="formulaLineEdit">
             <property name="text">
-             <string>condition ~ sex + age + log_jacobian</string>
+             <string>log_jacobian ~ group</string>
             </property>
            </widget>
           </item>
@@ -708,14 +743,14 @@
        <item row="1" column="0">
         <widget class="QLabel" name="label_26">
          <property name="text">
-          <string>File pattern:</string>
+          <string>Filename end pattern:</string>
          </property>
         </widget>
        </item>
        <item row="1" column="1">
         <widget class="QLineEdit" name="filePatternLineEdit">
          <property name="text">
-          <string>forwardWarp.nii.gz</string>
+          <string>-forwardWarp.nii.gz</string>
          </property>
         </widget>
        </item>
