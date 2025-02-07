@@ -624,6 +624,20 @@
        <item row="0" column="1">
         <widget class="ctkDirectoryButton" name="jacobianInputDirectory"/>
        </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_26">
+         <property name="text">
+          <string>Filename end pattern:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLineEdit" name="filePatternLineEdit">
+         <property name="text">
+          <string>forwardWarp.nii.gz</string>
+         </property>
+        </widget>
+       </item>
        <item row="2" column="0">
         <widget class="QLabel" name="label_4">
          <property name="text">
@@ -635,7 +649,7 @@
         <widget class="qMRMLNodeComboBox" name="jacobianTemplateComboBox">
          <property name="nodeTypes">
           <stringlist notr="true">
-           <string>vtkMRMLVolumeNode</string>
+           <string>vtkMRMLScalarVolumeNode</string>
           </stringlist>
          </property>
          <property name="hideChildNodeTypes">
@@ -646,7 +660,14 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0" colspan="2">
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_28">
+         <property name="text">
+          <string>Template Mask</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
         <widget class="ctkCollapsibleButton" name="CollapsibleButton_2">
          <property name="text">
           <string>View Input Image List</string>
@@ -661,7 +682,7 @@
          </layout>
         </widget>
        </item>
-       <item row="4" column="0" colspan="2">
+       <item row="6" column="0" colspan="2">
         <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
          <property name="title">
           <string>Covariate Options</string>
@@ -733,24 +754,53 @@
          </layout>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
+       <item row="7" column="0" colspan="2">
         <widget class="QPushButton" name="generateJacobianButton">
          <property name="text">
           <string>Jacobian Analysis</string>
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_26">
-         <property name="text">
-          <string>Filename end pattern:</string>
+       <item row="3" column="1">
+        <widget class="qMRMLNodeComboBox" name="templateMaskComboBox">
+         <property name="nodeTypes">
+          <stringlist notr="true">
+           <string>vtkMRMLLabelMapVolumeNode</string>
+          </stringlist>
+         </property>
+         <property name="hideChildNodeTypes">
+          <stringlist notr="true"/>
+         </property>
+         <property name="noneEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="interactionNodeSingletonTag">
+          <string notr="true"/>
          </property>
         </widget>
        </item>
-       <item row="1" column="1">
-        <widget class="QLineEdit" name="filePatternLineEdit">
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_29">
          <property name="text">
-          <string>forwardWarp.nii.gz</string>
+          <string>Q Values Image</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="qMRMLNodeComboBox" name="outputImageComboBox">
+         <property name="nodeTypes">
+          <stringlist notr="true">
+           <string>vtkMRMLScalarVolumeNode</string>
+          </stringlist>
+         </property>
+         <property name="hideChildNodeTypes">
+          <stringlist notr="true"/>
+         </property>
+         <property name="baseName">
+          <string>QValuesImage</string>
+         </property>
+         <property name="interactionNodeSingletonTag">
+          <string notr="true"/>
          </property>
         </widget>
        </item>
@@ -1412,6 +1462,38 @@
     <hint type="destinationlabel">
      <x>376</x>
      <y>94</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputImageComboBox</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>309</x>
+     <y>476</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>394</x>
+     <y>182</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>templateMaskComboBox</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>309</x>
+     <y>476</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>394</x>
+     <y>153</y>
     </hint>
    </hints>
   </connection>

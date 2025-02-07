@@ -132,9 +132,11 @@ def antsImageFromNode(imageNode):
 
     return image
 
-def nodeFromANTSImage(antsImage, imageNode):
+def nodeFromANTSImage(antsImage, imageNode=None):
     import ants
     
+    if not imageNode:
+        imageNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLScalarVolumeNode')
 
 
     tempFilePath = os.path.join(
@@ -148,6 +150,8 @@ def nodeFromANTSImage(antsImage, imageNode):
     storageNode.ReadData(imageNode, True)
 
     os.remove(tempFilePath)
+
+    return imageNode
 
 
 def nodeFromANTSTransform(antsTransformPath, transformNode):
@@ -165,7 +169,6 @@ def writeTransformSet(outputDirectory, name, direction, transforms):
     import shutil
     for i, transform in enumerate(transforms):
         path, ext = os.path.basename(transform).split(os.extsep, 1)
-        print(ext)
         if ext == 'mat':
             filename = name +'-'+str(i)+ direction  + 'Affine.mat'
 
@@ -404,6 +407,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.inputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
         self.ui.outputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
 
+        self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
+        self.ui.outputImageComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
+        self.ui.jacobianInputListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunAnalysis))
+        self.ui.covariatePathEdit.currentPathChanged.connect(self.checkCanRunAnalysis)
+
         self.ui.runGroupRegistrationButton.clicked.connect(self.runGroupRegistration)
 
         # Make sure parameter node is initialized (needed for module reload)
@@ -445,6 +453,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.logic.installANTsPyX()
         self.checkCanRunGroupRegistration()
         self.checkCanRunTemplateBuilding()
+        self.checkCanRunAnalysis()
 
     def exit(self):
         """
@@ -924,6 +933,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         filePaths = self.getInputsForGroupRegistration()
         self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory)
+
+
+    def checkCanRunAnalysis(self):
+        self.ui.generateJacobianButton.enabled = self.ui.jacobianInputListWidget.count !=0 and self.ui.jacobianTemplateComboBox.currentNode() and self.ui.outputImageComboBox.currentNode() and os.path.exists(self.ui.covariatePathEdit.currentPath)
     
     def onRunTemplateBuilding(self):
         self.uiWidget.enabled = False
@@ -1048,6 +1061,33 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.covariatePathEdit.currentPath = self.covariateTableFile
         qpath = qt.QUrl.fromLocalFile(os.path.dirname(covariateFolder+os.path.sep))
         qt.QDesktopServices().openUrl(qpath)
+
+
+    def onGenerateJacobianImages(self):
+
+        pathList = [self.ui.jacobianInputListWidget.item(x).text() for x in range(self.ui.jacobianInputListWidget.count)]
+        pathList = [os.path.join(self.ui.jacobianInputDirectory.directory, x) for x in pathList]
+        template = self.ui.jacobianTemplateComboBox.currentNode()
+        templateMask = self.ui.templateMaskComboBox.currentNode()
+        outputImage = self.ui.outputImageComboBox.currentNode()
+        covariatesFilePath = self.ui.covariatePathEdit.currentPath
+        rformula = self.ui.formulaLineEdit.text
+        
+
+        self.uiWidget.enabled = False
+        self.ui.generateJacobianButton.text = "Jacobian Analysis in progess"
+        slicer.app.processEvents()
+        try:
+            with slicer.util.tryWithErrorDisplay("Jacobian Analysis failed."):
+                self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula, outputImage)
+            self.uiWidget.enabled = True
+            self.ui.generateJacobianButton.text = "Jacobian Analysis"
+            slicer.app.processEvents()
+        except Exception as e:
+            self.uiWidget.enabled = True
+            self.ui.generateJacobianButton.text = "Jacobian Analysis"
+            slicer.app.processEvents()
+            raise e
 
 
 
@@ -1608,6 +1648,63 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             import ants
         except:
             slicer.util.pip_install('antspyx')
+
+
+    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula, outputImageNode):
+
+        import ants
+
+        template = antsImageFromNode(templateNode)
+        if templateMaskNode:
+            raw_mask = antsImageFromNode(templateMaskNode)
+            template_mask = ants.get_mask(raw_mask,1, 100, 0)
+        else:
+
+            template_mask = ants.get_mask(template)
+
+        
+        log_jacobian_image_list = list()
+
+        for path in pathList:
+            jacobian = ants.create_jacobian_determinant_image(template, path, do_log=True)
+            log_jacobian_image_list.append(jacobian)
+
+        log_jacobian = ants.image_list_to_matrix(log_jacobian_image_list, template_mask)
+
+        import pandas
+        import statsmodels
+
+        df = pandas.read_csv(covariatesFilePath)
+        availableFactors = df.columns.to_list()
+        availableFactors.remove('ID')
+
+        print("Factors from csv file: ")
+        print(availableFactors)
+
+        data = {}
+
+        for factor in availableFactors:
+            factorValues = df[factor].to_numpy()
+            data[factor] = factorValues
+
+        covariates = pandas.DataFrame(data)
+
+        print(covariates)
+        print(rformula)
+
+
+        dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula)
+
+        log_jacobian_p_values = dbm['pValues']['pval_log_jacobian']
+        log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
+
+        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)
+
+        nodeFromANTSImage(log_jacobian_q_values_image, outputImageNode)
+
+
+
+            
             
 
 
