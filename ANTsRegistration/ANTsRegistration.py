@@ -160,6 +160,21 @@ def nodeFromANTSTransform(antsTransformPath, transformNode):
 
 
 
+def writeTransformSet(outputDirectory, name, direction, transforms):
+    
+    import shutil
+    for i, transform in enumerate(transforms):
+        path, ext = os.path.splitext(transform)
+        if ext == '.mat':
+            filename = name +'-'+str(i)+ direction  + 'Affine.mat'
+
+        if ext == '.gz':
+            filename = name +'-'+str(i) +direction + 'Warp.nii.gz'
+        shutil.copy(transform, os.path.join(outputDirectory, filename))
+
+
+
+
 
 class ANTsRegistration(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
@@ -959,7 +974,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.inTemplateComboBox.currentNode(), 
                     filePaths, 
                     outputPath, 
-                    self.ui.groupTransformTypeComboBox.currentText
+                    self.ui.groupTransformTypeComboBox.currentText,
+                    self.ui.compositeRadioButton.checked
                 )
             self.uiWidget.enabled = True
             self.ui.runGroupRegistrationButton.text = "Register"
@@ -975,12 +991,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         inputFilePath = self.ui.jacobianInputDirectory.directory
 
         filePaths = []
-        extensions = ['-forward.tfm']
         for file in os.listdir(inputFilePath):
-            for ext in extensions:
-                if file.endswith(ext):
-                    filePaths.append(os.path.join(inputFilePath, file))
-                    break
+            if file.endswith(self.ui.filePatternLineEdit.text):
+                filePaths.append(os.path.join(inputFilePath, file))
 
         for path in filePaths:
 
@@ -1427,7 +1440,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
     
-    def groupRegistrationANTsPy(self, template, pathlist, outputDirectory, transformtype):
+    def groupRegistrationANTsPy(self, template, pathlist, outputDirectory, transformtype, writeCompositeTransform=False):
         
         import ants
         import shutil
@@ -1436,13 +1449,18 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         for path in pathlist:
             name = os.path.splitext(os.path.basename(path))[0]
             moving = ants.image_read(path)
-            reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=True)
-            forwardName = os.path.join(outputDirectory, name +'-forward.h5')
-            inverseName = os.path.join(outputDirectory, name +'-inverse.h5')
+            reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
+            if writeCompositeTransform:
+                forwardName = os.path.join(outputDirectory, name +'-forward.h5')
+                inverseName = os.path.join(outputDirectory, name +'-inverse.h5')
+                shutil.copy(reg['fwdtransforms'], forwardName)
+                shutil.copy(reg['invtransforms'], inverseName)
+            else:
+                writeTransformSet(outputDirectory, name, 'forward', reg['fwdtransforms'])
+                writeTransformSet(outputDirectory, name, 'inverse', reg['invtransforms'])
             transformedName = os.path.join(outputDirectory, name +'-transformed.nii.gz')
             ants.image_write(reg['warpedmovout'], transformedName)
-            shutil.copy(reg['fwdtransforms'], forwardName)
-            shutil.copy(reg['invtransforms'], inverseName)
+            
     
     
     def buildTemplateANTsPy(self, initialTemplate, pathList, outputTemplate, transformType):
