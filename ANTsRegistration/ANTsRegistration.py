@@ -164,11 +164,12 @@ def writeTransformSet(outputDirectory, name, direction, transforms):
     
     import shutil
     for i, transform in enumerate(transforms):
-        path, ext = os.path.splitext(transform)
-        if ext == '.mat':
+        path, ext = os.path.basename(transform).split(os.extsep, 1)
+        print(ext)
+        if ext == 'mat':
             filename = name +'-'+str(i)+ direction  + 'Affine.mat'
 
-        if ext == '.gz':
+        if ext == 'nii.gz':
             filename = name +'-'+str(i) +direction + 'Warp.nii.gz'
         shutil.copy(transform, os.path.join(outputDirectory, filename))
 
@@ -1008,7 +1009,6 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
         files = [os.path.basename(self.ui.jacobianInputListWidget.item(x).text()) for x in range(self.ui.jacobianInputListWidget.count)]
-        cases = [x.remove(self.ui.filePatternLineEdit.text) for x in files]
 
         if numberOfInputFiles<1:
             qt.QMessageBox.critical(slicer.util.mainWindow(),
@@ -1023,13 +1023,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             'Error', 'Please specify at least one factor name to generate a covariate table template')
             logging.debug('No factor names are provided for covariate table template')
             return
-        sortedArray = np.zeros(len(cases), dtype={'names':('filename', 'procdist'),'formats':('U50','f8')})
-        sortedArray['filename']=cases
+        sortedArray = np.zeros(len(files), dtype={'names':('filename', 'procdist'),'formats':('U50','f8')})
+        sortedArray['filename']=files
 
         self.factorTableNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTableNode', 'Factor Table')
         col=self.factorTableNode.AddColumn()
         col.SetName('ID')
-        for i in range(len(cases)):
+        for i in range(len(files)):
             self.factorTableNode.AddEmptyRow()
             self.factorTableNode.SetCellText(i,0,sortedArray['filename'][i])
         for i in range(len(factorList)):
@@ -1461,7 +1461,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         fixed = antsImageFromNode(template)
 
         for path in pathlist:
-            name = os.path.splitext(os.path.basename(path))[0]
+            name, ext = os.path.basename(path).split(os.extsep, 1)
             moving = ants.image_read(path)
             reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
             if writeCompositeTransform:
