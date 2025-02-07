@@ -23,7 +23,7 @@
       <enum>QTabWidget::North</enum>
      </property>
      <property name="currentIndex">
-      <number>2</number>
+      <number>3</number>
      </property>
      <widget class="QWidget" name="pairwiseTab">
       <attribute name="title">
@@ -614,7 +614,7 @@
              <item>
               <widget class="QLineEdit" name="factorLineEdit">
                <property name="text">
-                <string>sex, age, condition</string>
+                <string>condition, sex, age</string>
                </property>
               </widget>
              </item>

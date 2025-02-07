@@ -5,6 +5,8 @@ import glob
 import time
 from typing import Annotated, Optional
 from dataclasses import dataclass
+from datetime import datetime
+import numpy as np
 
 import vtk, qt, ctk, slicer
 from slicer.i18n import tr as _
@@ -406,6 +408,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.transformTypeComboBox.addItem(transformTypes)
             self.ui.templateTransformTypeComboBox.addItem(transformTypes)
             self.ui.groupTransformTypeComboBox.addItem(transformTypes)
+
+
+        self.ui.jacobianInputDirectory.directorySelected.connect(self.populateJacobianInputs)
+        self.ui.generateTemplateButton.clicked.connect(self.onGenerateCovariatesTable)
+        self.ui.generateJacobianButton.clicked.connect(self.onGenerateJacobianImages)
 
     def cleanup(self):
         """
@@ -963,6 +970,67 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.app.processEvents()
             raise e
 
+    def populateJacobianInputs(self):
+        self.ui.jacobianInputListWidget.clear()
+        inputFilePath = self.ui.jacobianInputDirectory.directory
+
+        filePaths = []
+        extensions = ['-forward.tfm']
+        for file in os.listdir(inputFilePath):
+            for ext in extensions:
+                if file.endswith(ext):
+                    filePaths.append(os.path.join(inputFilePath, file))
+                    break
+
+        for path in filePaths:
+
+            self.ui.jacobianInputListWidget.addItem(os.path.basename(path))
+
+
+    def onGenerateCovariatesTable(self):
+        numberOfInputFiles = self.ui.jacobianInputListWidget.count
+
+
+        files = [os.path.basename(self.ui.jacobianInputListWidget.item(x).text()) for x in range(self.ui.jacobianInputListWidget.count)]
+
+        if numberOfInputFiles<1:
+            qt.QMessageBox.critical(slicer.util.mainWindow(),
+            'Error', 'Please select input files for analysis before generating covariate table')
+            logging.debug('No input files are selected')
+            return
+        #if #check for rows, columns
+        factorList = self.ui.factorLineEdit.text.split(",")
+        print(factorList)
+        if self.ui.factorLineEdit.text == '' or len(factorList)<1:
+            qt.QMessageBox.critical(slicer.util.mainWindow(),
+            'Error', 'Please specify at least one factor name to generate a covariate table template')
+            logging.debug('No factor names are provided for covariate table template')
+            return
+        sortedArray = np.zeros(len(files), dtype={'names':('filename', 'procdist'),'formats':('U50','f8')})
+        sortedArray['filename']=files
+
+        self.factorTableNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTableNode', 'Factor Table')
+        col=self.factorTableNode.AddColumn()
+        col.SetName('ID')
+        for i in range(len(files)):
+            self.factorTableNode.AddEmptyRow()
+            self.factorTableNode.SetCellText(i,0,sortedArray['filename'][i])
+        for i in range(len(factorList)):
+            col=self.factorTableNode.AddColumn()
+            col.SetName(factorList[i])
+        dateTimeStamp = datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
+        covariateFolder = os.path.join(slicer.app.cachePath, dateTimeStamp)
+        self.covariateTableFile = os.path.join(covariateFolder, "covariateTable.csv")
+        try:
+            os.makedirs(covariateFolder)
+            self.covariateTableFile = os.path.join(covariateFolder, "covariateTable.csv")
+            slicer.util.saveNode(self.factorTableNode, self.covariateTableFile)
+        except:
+            logging.debug("Covariate table output failed: Could not write file")
+        slicer.mrmlScene.RemoveNode(self.factorTableNode)
+        self.ui.covariatePathEdit.currentPath = self.covariateTableFile
+        qpath = qt.QUrl.fromLocalFile(os.path.dirname(covariateFolder+os.path.sep))
+        qt.QDesktopServices().openUrl(qpath)
 
 
 
@@ -976,6 +1044,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             subprocess.Popen(["open", presetPath])
         else:
             subprocess.Popen(["xdg-open", presetPath])
+
+    
 
 
 class ANTsRegistrationLogic(ITKANTsCommonLogic):
