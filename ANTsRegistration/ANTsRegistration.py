@@ -1693,14 +1693,16 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         print(rformula)
 
 
-        dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula)
+        dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula, verbose=True)
 
-        log_jacobian_p_values = dbm['pValues']['pval_log_jacobian']
+        log_jacobian_p_values = dbm['pValues']['pval_group[T.b]']
         log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
 
         log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)
 
-        nodeFromANTSImage(log_jacobian_q_values_image, outputImageNode)
+        print(len(log_jacobian_q_values_image))
+
+        nodeFromANTSImage(log_jacobian_q_values_image[0], outputImageNode)
 
 
 
