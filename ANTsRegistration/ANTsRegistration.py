@@ -437,6 +437,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.jacobianInputDirectory.directorySelected.connect(self.populateJacobianInputs)
         self.ui.generateTemplateButton.clicked.connect(self.onGenerateCovariatesTable)
         self.ui.generateJacobianButton.clicked.connect(self.onGenerateJacobianImages)
+        self.ui.factorLineEdit.textChanged.connect(self.updateCovariateFactors)
+
+        self.updateCovariateFactors()
 
     def cleanup(self):
         """
@@ -1017,6 +1020,14 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.jacobianInputListWidget.addItem(os.path.basename(path))
 
 
+    def updateCovariateFactors(self):
+        factorList = self.ui.factorLineEdit.text.split(",")
+
+        self.ui.qValueComboBox.clear()
+
+        for factor in factorList:
+            self.ui.qValueComboBox.addItem(factor)
+    
     def onGenerateCovariatesTable(self):
         numberOfInputFiles = self.ui.jacobianInputListWidget.count
 
@@ -1072,6 +1083,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         outputImage = self.ui.outputImageComboBox.currentNode()
         covariatesFilePath = self.ui.covariatePathEdit.currentPath
         rformula = self.ui.formulaLineEdit.text
+        targetCovariate = self.ui.qValueComboBox.currentText
         
 
         self.uiWidget.enabled = False
@@ -1079,7 +1091,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Jacobian Analysis failed."):
-                self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula, outputImage)
+                self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula, outputImage, targetCovariate)
             self.uiWidget.enabled = True
             self.ui.generateJacobianButton.text = "Jacobian Analysis"
             slicer.app.processEvents()
@@ -1650,7 +1662,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             slicer.util.pip_install('antspyx')
 
 
-    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula, outputImageNode):
+    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula, outputImageNode, targetCovariate):
 
         import ants
 
@@ -1695,7 +1707,9 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula, verbose=True)
 
-        log_jacobian_p_values = dbm['pValues']['pval_group[T.b]']
+        targetCovariateLookup = 'pval_' + str(targetCovariate) +'[T.b]'
+        
+        log_jacobian_p_values = dbm['pValues'][targetCovariateLookup]
         log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
 
         log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)
