@@ -408,9 +408,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
 
         self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
-        self.ui.outputImageComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
+        self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
+        self.ui.outputImageComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
         self.ui.jacobianInputListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunAnalysis))
         self.ui.covariatePathEdit.currentPathChanged.connect(self.checkCanRunAnalysis)
+        self.ui.templateMaskComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
+        self.ui.loadPickleButton.clicked.connect(self.unpickleDBM)
 
         self.ui.runGroupRegistrationButton.clicked.connect(self.runGroupRegistration)
 
@@ -436,10 +439,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.jacobianInputDirectory.directorySelected.connect(self.populateJacobianInputs)
         self.ui.generateTemplateButton.clicked.connect(self.onGenerateCovariatesTable)
-        self.ui.generateJacobianButton.clicked.connect(self.onGenerateJacobianImages)
-        self.ui.factorLineEdit.textChanged.connect(self.updateCovariateFactors)
+        self.ui.generateJacobianButton.clicked.connect(self.onRunJacobianAnalysis)
+        self.ui.generateImageButton.clicked.connect(self.onGenerateImages)
 
-        self.updateCovariateFactors()
 
     def cleanup(self):
         """
@@ -457,6 +459,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.checkCanRunGroupRegistration()
         self.checkCanRunTemplateBuilding()
         self.checkCanRunAnalysis()
+        self.checkCanGenerateImages()
+        self.setupDBMCache()
 
     def exit(self):
         """
@@ -939,7 +943,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def checkCanRunAnalysis(self):
-        self.ui.generateJacobianButton.enabled = self.ui.jacobianInputListWidget.count !=0 and self.ui.jacobianTemplateComboBox.currentNode() and self.ui.outputImageComboBox.currentNode() and os.path.exists(self.ui.covariatePathEdit.currentPath)
+        self.ui.generateJacobianButton.enabled = self.ui.jacobianInputListWidget.count !=0 and self.ui.jacobianTemplateComboBox.currentNode() and os.path.exists(self.ui.covariatePathEdit.currentPath)
+    
+    
+    def checkCanGenerateImages(self):
+        self.ui.generateImageButton.enabled = self.logic.dbm and self.ui.outputImageComboBox.currentNode() and (self.ui.jacobianTemplateComboBox.currentNode() or self.ui.templateMaskComboBox.currentNode())
+    
     
     def onRunTemplateBuilding(self):
         self.uiWidget.enabled = False
@@ -1020,12 +1029,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.jacobianInputListWidget.addItem(os.path.basename(path))
 
 
-    def updateCovariateFactors(self):
-        factorList = self.ui.factorLineEdit.text.split(",")
+    def updateCovariateFactors(self, covariates):
 
         self.ui.qValueComboBox.clear()
 
-        for factor in factorList:
+        for factor in covariates:
             self.ui.qValueComboBox.addItem(factor)
     
     def onGenerateCovariatesTable(self):
@@ -1074,16 +1082,14 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         qt.QDesktopServices().openUrl(qpath)
 
 
-    def onGenerateJacobianImages(self):
+    def onRunJacobianAnalysis(self):
 
         pathList = [self.ui.jacobianInputListWidget.item(x).text() for x in range(self.ui.jacobianInputListWidget.count)]
         pathList = [os.path.join(self.ui.jacobianInputDirectory.directory, x) for x in pathList]
         template = self.ui.jacobianTemplateComboBox.currentNode()
         templateMask = self.ui.templateMaskComboBox.currentNode()
-        outputImage = self.ui.outputImageComboBox.currentNode()
         covariatesFilePath = self.ui.covariatePathEdit.currentPath
         rformula = self.ui.formulaLineEdit.text
-        targetCovariate = self.ui.qValueComboBox.currentText
         
 
         self.uiWidget.enabled = False
@@ -1091,15 +1097,56 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Jacobian Analysis failed."):
-                self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula, outputImage, targetCovariate)
+                covariates = self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula)
+            self.updateCovariateFactors(covariates)
             self.uiWidget.enabled = True
             self.ui.generateJacobianButton.text = "Jacobian Analysis"
+            self.pickleDBM()
+            self.ui.loadCachePathLineEdit.currentPath = self.ui.cachePathLineEdit.currentPath
+            self.checkCanGenerateImages()
             slicer.app.processEvents()
         except Exception as e:
             self.uiWidget.enabled = True
             self.ui.generateJacobianButton.text = "Jacobian Analysis"
             slicer.app.processEvents()
             raise e
+        
+
+    def onGenerateImages(self):
+        template = self.ui.jacobianTemplateComboBox.currentNode()
+        templateMask = self.ui.templateMaskComboBox.currentNode()
+        outputImage = self.ui.outputImageComboBox.currentNode()
+        covariate = self.ui.qValueComboBox.currentText
+        
+        self.logic.generateImages(covariate, template, templateMask, outputImage)
+
+
+    def setupDBMCache(self):
+        tempFilePath = os.path.join(slicer.app.temporaryPath,"dbm.pickle" )
+        self.ui.cachePathLineEdit.currentPath = tempFilePath
+
+
+    def pickleDBM(self):
+
+        import pickle
+
+        with open(self.ui.cachePathLineEdit.currentPath, 'wb') as handle:
+            pickle.dump(self.logic.dbm, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+    def unpickleDBM(self):
+        import pickle
+        with open(self.ui.loadCachePathLineEdit.currentPath, 'rb') as handle:
+            self.logic.dbm = pickle.load(handle)
+
+        covariateOptions = self.logic.dbm['modelNames']
+        if 'Intercept' in covariateOptions:
+            covariateOptions.remove('Intercept')
+
+        self.updateCovariateFactors(covariateOptions)
+        self.checkCanGenerateImages()
+
+
 
 
 
@@ -1174,6 +1221,9 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                     module = getattr(module, modulePart)
                 importlib.reload(module)  # reload
 
+        self.dbm = None   
+
+    
     def setDefaultParameters(self, parameterNode):
         """
         Initialize parameter node with default settings.
@@ -1662,7 +1712,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             slicer.util.pip_install('antspyx')
 
 
-    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula, outputImageNode, targetCovariate):
+    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula):
 
         import ants
 
@@ -1684,7 +1734,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         log_jacobian = ants.image_list_to_matrix(log_jacobian_image_list, template_mask)
 
         import pandas
-        import statsmodels
 
         df = pandas.read_csv(covariatesFilePath)
         availableFactors = df.columns.to_list()
@@ -1705,18 +1754,39 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         print(rformula)
 
 
-        dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula, verbose=True)
+        self.dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula, verbose=True)
 
-        targetCovariateLookup = 'pval_' + str(targetCovariate) +'[T.b]'
-        
-        log_jacobian_p_values = dbm['pValues'][targetCovariateLookup]
+
+        covariateOptions = self.dbm['modelNames']
+        if 'Intercept' in covariateOptions:
+            covariateOptions.remove('Intercept')
+
+        return covariateOptions
+
+
+
+    def generateImages(self, targetCovariate, templateNode, templateMaskNode,outputImageNode):
+        import statsmodels
+        import ants
+
+        if templateMaskNode:
+            raw_mask = antsImageFromNode(templateMaskNode)
+            template_mask = ants.get_mask(raw_mask,1, 100, 0)
+        else:
+            template = antsImageFromNode(templateNode)
+            template_mask = ants.get_mask(template)
+
+        log_jacobian_p_values = self.dbm['pValues']['pval_'+ targetCovariate]
         log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
+        log_jacobian_beta_values = self.dbm['coefficientValues']['coef_'+ targetCovariate]
+        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)[0]
+        log_jacobian_beta_values_image = ants.matrix_to_images(np.reshape(log_jacobian_beta_values, (1, len(log_jacobian_beta_values))), template_mask)[0]
+        output_Image = ants.mask_image(log_jacobian_beta_values_image, ants.get_mask(log_jacobian_q_values_image))
 
-        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)
 
-        print(len(log_jacobian_q_values_image))
+        # get index of the correct covariate
 
-        nodeFromANTSImage(log_jacobian_q_values_image[0], outputImageNode)
+        nodeFromANTSImage(output_Image, outputImageNode)
 
 
 

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>619</width>
-    <height>953</height>
+    <width>691</width>
+    <height>1172</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -685,7 +685,7 @@
        <item row="6" column="0" colspan="2">
         <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
          <property name="title">
-          <string>Covariate Options</string>
+          <string>Regression</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_8">
           <item>
@@ -761,26 +761,26 @@
               </widget>
              </item>
              <item row="1" column="0">
-              <widget class="QLabel" name="label_30">
+              <widget class="QLabel" name="label_31">
                <property name="text">
-                <string>Factor for QValue computation</string>
+                <string>Analysis Cache:</string>
                </property>
               </widget>
              </item>
              <item row="1" column="1">
-              <widget class="QComboBox" name="qValueComboBox"/>
+              <widget class="ctkPathLineEdit" name="cachePathLineEdit"/>
              </item>
             </layout>
            </widget>
           </item>
+          <item>
+           <widget class="QPushButton" name="generateJacobianButton">
+            <property name="text">
+             <string>Run Image Regression</string>
+            </property>
+           </widget>
+          </item>
          </layout>
-        </widget>
-       </item>
-       <item row="7" column="0" colspan="2">
-        <widget class="QPushButton" name="generateJacobianButton">
-         <property name="text">
-          <string>Jacobian Analysis</string>
-         </property>
         </widget>
        </item>
        <item row="3" column="1">
@@ -801,29 +801,72 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_29">
-         <property name="text">
-          <string>Q Values Image</string>
+       <item row="7" column="0" colspan="2">
+        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_4">
+         <property name="title">
+          <string>Image Generation</string>
          </property>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <widget class="qMRMLNodeComboBox" name="outputImageComboBox">
-         <property name="nodeTypes">
-          <stringlist notr="true">
-           <string>vtkMRMLScalarVolumeNode</string>
-          </stringlist>
-         </property>
-         <property name="hideChildNodeTypes">
-          <stringlist notr="true"/>
-         </property>
-         <property name="baseName">
-          <string>QValuesImage</string>
-         </property>
-         <property name="interactionNodeSingletonTag">
-          <string notr="true"/>
-         </property>
+         <layout class="QFormLayout" name="formLayout_11">
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_30">
+            <property name="text">
+             <string>Factor for QValue computation</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="qValueComboBox"/>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QPushButton" name="generateImageButton">
+            <property name="text">
+             <string>Generate Output Images</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_32">
+            <property name="text">
+             <string>Analysis Cache:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="ctkPathLineEdit" name="loadCachePathLineEdit"/>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QPushButton" name="loadPickleButton">
+            <property name="text">
+             <string>Load analysis from cache (you will also need to specify a template and/or template mask)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_29">
+            <property name="text">
+             <string>Q Values Image</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="qMRMLNodeComboBox" name="outputImageComboBox">
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLScalarVolumeNode</string>
+             </stringlist>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="baseName">
+             <string>QValuesImage</string>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
       </layout>
