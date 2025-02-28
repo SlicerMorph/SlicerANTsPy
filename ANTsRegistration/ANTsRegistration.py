@@ -177,6 +177,32 @@ def writeTransformSet(outputDirectory, name, direction, transforms):
         shutil.copy(transform, os.path.join(outputDirectory, filename))
 
 
+def antsLandmarksFromNode(node):
+    pts = []
+    for point in range(0, node.GetNumberOfControlPoints()):
+        pt = node.GetNthControlPointPosition(point)
+        pt = list(pt)
+        pt[1] = pt[1] * -1
+        pt[0] = pt[0] * -1
+        pts.append(pt)
+
+    return np.array(pts)
+
+
+def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='rigid', domainImage=None):
+    import ants
+    fixed_landmarks_ants = antsLandmarksFromNode(fixed_landmarks)
+    moving_landmarks_ants = antsLandmarksFromNode(moving_landmarks)
+    xfrm = ants.fit_transform_to_paired_points(moving_landmarks_ants, fixed_landmarks_ants)
+    tempFilePath = os.path.join(
+        slicer.app.temporaryPath,
+        "tempTransform_{0}.h5".format(time.time()),
+    )
+    ants.write_transform(xfrm, tempFilePath)
+
+    return [tempFilePath]
+
+
 
 
 
@@ -406,6 +432,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
         self.ui.inputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
         self.ui.outputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
+        self.ui.initialTransformGWCheckBox.toggled.connect(self.checkCanRunGroupRegistration)
+        self.ui.templateLandmarksGWSelector.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
+        self.ui.initialTransformGWDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
 
         self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
         self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
@@ -938,8 +967,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def checkCanRunGroupRegistration(self):
 
-        filePaths = self.getInputsForGroupRegistration()
-        self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory)
+        filePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
+        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+        if self.ui.initialTransformGWCheckBox.checked:
+            self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and len(landmarkPaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory) and self.ui.templateLandmarksGWSelector.currentNode()
+        else:
+            self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory)
 
 
     def checkCanRunAnalysis(self):
@@ -971,31 +1004,45 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
             raise e
-        
+    
 
-    def getInputsForGroupRegistration(self):
-        path = self.ui.inputDirectoryButton.directory
+    def getInputsFromDirectory(self, directory, extensions):
         filePaths = []
-        extensions = ['.nrrd', '.mha', '.nii.gz']
-        for file in os.listdir(path):
+        for file in os.listdir(directory):
             for ext in extensions:
                 if file.endswith(ext):
-                    filePaths.append(os.path.join(path, file))
+                    filePaths.append(os.path.join(directory, file))
                     break
 
         return filePaths
     
+
+    def comparePathBasenames(self, primaryList, secondaryList):
+        secondaryBasenames = [os.path.basename(x).split(os.extsep, 1)[0] for x in secondaryList]
+
+        for path in primaryList:
+            if os.path.basename(path).split(os.extsep, 1)[0] not in secondaryBasenames:
+                raise IOError("Missing matching file for: " + path)
+
     
+    def checkGWLandmarks(self):
+        imagePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
+        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+
+        self.comparePathBasenames(imagePaths, landmarkPaths)
     
     def runGroupRegistration(self):
         outputPath  = self.ui.outputDirectoryButton.directory
-        filePaths = self.getInputsForGroupRegistration()
+        filePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
+        initialTransformPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
 
         self.uiWidget.enabled = False
         self.ui.runGroupRegistrationButton.text = "Group registration in progess"
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Group registration failed."):
+                if self.ui.initialTransformGWCheckBox.checked:
+                    self.checkGWLandmarks()
                 self.logic.groupRegistrationANTsPy(
                     self.ui.inTemplateComboBox.currentNode(), 
                     filePaths, 
@@ -1004,7 +1051,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.compositeRadioButton.checked,
                     self.ui.forwardCheckBox.checked,
                     self.ui.inverseCheckBox.checked,
-                    self.ui.transformedCheckBox.checked
+                    self.ui.transformedCheckBox.checked,
+                    self.ui.initialTransformGWCheckBox.checked,
+                    initialTransformPaths,
+                    self.ui.templateLandmarksGWSelector.currentNode()
+
                 )
             self.uiWidget.enabled = True
             self.ui.runGroupRegistrationButton.text = "Register"
@@ -1546,6 +1597,14 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
     
+    def getLandmarksForImage(self, imagePath, landmarkPaths):
+        basename = os.path.basename(imagePath).split(os.extsep, 1)[0]
+
+        for p in landmarkPaths:
+            if basename in p:
+                return p
+    
+    
     def groupRegistrationANTsPy(
             self, 
             template, 
@@ -1555,7 +1614,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             writeCompositeTransform=False, 
             outputForward=True, 
             outputInverse=True, 
-            outputTransformed=True
+            outputTransformed=True,
+            computeInitialTransform=False,
+            initialTransformPaths=None,
+            templateLandmarks = None
             ):
         
         import ants
@@ -1563,9 +1625,15 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         fixed = antsImageFromNode(template)
 
         for path in pathlist:
+            initialTransform = None
+            if computeInitialTransform:
+                landmarkPath = self.getLandmarksForImage(path, initialTransformPaths)
+                imageLandmarks = slicer.util.loadMarkups(landmarkPath)
+                initialTransform = createInitialTransform(templateLandmarks, imageLandmarks)
+                slicer.mrmlScene.RemoveNode(imageLandmarks)
             name, ext = os.path.basename(path).split(os.extsep, 1)
             moving = ants.image_read(path)
-            reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
+            reg = ants.registration(fixed=fixed, moving=moving, initial_transform=initialTransform,type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
             if writeCompositeTransform:
                 if outputForward:
                     forwardName = os.path.join(outputDirectory, name +'-forward.h5')
