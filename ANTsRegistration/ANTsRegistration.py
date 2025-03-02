@@ -1664,7 +1664,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             antsImage = ants.image_read(path)
             imageList.append(antsImage)
 
-        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType)
+        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType, iterations=1)
 
         nodeFromANTSImage(antstemplate, outputTemplate)
 
