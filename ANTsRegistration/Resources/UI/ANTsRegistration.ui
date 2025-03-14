@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>619</width>
-    <height>953</height>
+    <width>691</width>
+    <height>1172</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -23,7 +23,7 @@
       <enum>QTabWidget::North</enum>
      </property>
      <property name="currentIndex">
-      <number>3</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="pairwiseTab">
       <attribute name="title">
@@ -572,7 +572,7 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="0" colspan="2">
+       <item row="7" column="0" colspan="2">
         <widget class="QPushButton" name="runGroupRegistrationButton">
          <property name="text">
           <string>Register</string>
@@ -606,6 +606,61 @@
           </widget>
          </item>
         </layout>
+       </item>
+       <item row="6" column="0" colspan="2">
+        <widget class="QGroupBox" name="groupBox">
+         <property name="title">
+          <string>Initial Transform</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_12">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_33">
+            <property name="text">
+             <string>Compute landmark-based initial transform:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QCheckBox" name="initialTransformGWCheckBox">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_34">
+            <property name="text">
+             <string>Transforms directory:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="ctkDirectoryButton" name="initialTransformGWDirectoryButton"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_35">
+            <property name="text">
+             <string>Template Landmarks</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="qMRMLNodeComboBox" name="templateLandmarksGWSelector">
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLMarkupsFiducialNode</string>
+             </stringlist>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -685,7 +740,7 @@
        <item row="6" column="0" colspan="2">
         <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
          <property name="title">
-          <string>Covariate Options</string>
+          <string>Regression</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_8">
           <item>
@@ -738,27 +793,49 @@
            </widget>
           </item>
           <item>
-           <widget class="QLabel" name="label_21">
-            <property name="text">
-             <string>Rformula for regression</string>
+           <widget class="QFrame" name="frame">
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
             </property>
+            <property name="frameShadow">
+             <enum>QFrame::Raised</enum>
+            </property>
+            <layout class="QFormLayout" name="formLayout_10">
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_21">
+               <property name="text">
+                <string>Rformula for regression</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLineEdit" name="formulaLineEdit">
+               <property name="text">
+                <string>log_jacobian ~ group</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_31">
+               <property name="text">
+                <string>Analysis Cache:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="ctkPathLineEdit" name="cachePathLineEdit"/>
+             </item>
+            </layout>
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="formulaLineEdit">
+           <widget class="QPushButton" name="generateJacobianButton">
             <property name="text">
-             <string>log_jacobian ~ group</string>
+             <string>Run Image Regression</string>
             </property>
            </widget>
           </item>
          </layout>
-        </widget>
-       </item>
-       <item row="7" column="0" colspan="2">
-        <widget class="QPushButton" name="generateJacobianButton">
-         <property name="text">
-          <string>Jacobian Analysis</string>
-         </property>
         </widget>
        </item>
        <item row="3" column="1">
@@ -779,29 +856,72 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_29">
-         <property name="text">
-          <string>Q Values Image</string>
+       <item row="7" column="0" colspan="2">
+        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_4">
+         <property name="title">
+          <string>Image Generation</string>
          </property>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <widget class="qMRMLNodeComboBox" name="outputImageComboBox">
-         <property name="nodeTypes">
-          <stringlist notr="true">
-           <string>vtkMRMLScalarVolumeNode</string>
-          </stringlist>
-         </property>
-         <property name="hideChildNodeTypes">
-          <stringlist notr="true"/>
-         </property>
-         <property name="baseName">
-          <string>QValuesImage</string>
-         </property>
-         <property name="interactionNodeSingletonTag">
-          <string notr="true"/>
-         </property>
+         <layout class="QFormLayout" name="formLayout_11">
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_30">
+            <property name="text">
+             <string>Factor for QValue computation</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="qValueComboBox"/>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QPushButton" name="generateImageButton">
+            <property name="text">
+             <string>Generate Output Images</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_32">
+            <property name="text">
+             <string>Analysis Cache:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="ctkPathLineEdit" name="loadCachePathLineEdit"/>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QPushButton" name="loadPickleButton">
+            <property name="text">
+             <string>Load analysis from cache (you will also need to specify a template and/or template mask)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_29">
+            <property name="text">
+             <string>Q Values Image</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="qMRMLNodeComboBox" name="outputImageComboBox">
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLScalarVolumeNode</string>
+             </stringlist>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="baseName">
+             <string>QValuesImage</string>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
       </layout>
@@ -1494,6 +1614,22 @@
     <hint type="destinationlabel">
      <x>394</x>
      <y>153</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>templateLandmarksGWSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>345</x>
+     <y>585</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>470</x>
+     <y>296</y>
     </hint>
    </hints>
   </connection>

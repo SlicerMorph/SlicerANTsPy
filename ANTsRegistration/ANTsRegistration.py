@@ -177,6 +177,32 @@ def writeTransformSet(outputDirectory, name, direction, transforms):
         shutil.copy(transform, os.path.join(outputDirectory, filename))
 
 
+def antsLandmarksFromNode(node):
+    pts = []
+    for point in range(0, node.GetNumberOfControlPoints()):
+        pt = node.GetNthControlPointPosition(point)
+        pt = list(pt)
+        pt[1] = pt[1] * -1
+        pt[0] = pt[0] * -1
+        pts.append(pt)
+
+    return np.array(pts)
+
+
+def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='rigid', domainImage=None):
+    import ants
+    fixed_landmarks_ants = antsLandmarksFromNode(fixed_landmarks)
+    moving_landmarks_ants = antsLandmarksFromNode(moving_landmarks)
+    xfrm = ants.fit_transform_to_paired_points(moving_landmarks_ants, fixed_landmarks_ants)
+    tempFilePath = os.path.join(
+        slicer.app.temporaryPath,
+        "tempTransform_{0}.h5".format(time.time()),
+    )
+    ants.write_transform(xfrm, tempFilePath)
+
+    return [tempFilePath]
+
+
 
 
 
@@ -406,11 +432,17 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
         self.ui.inputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
         self.ui.outputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
+        self.ui.initialTransformGWCheckBox.toggled.connect(self.checkCanRunGroupRegistration)
+        self.ui.templateLandmarksGWSelector.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
+        self.ui.initialTransformGWDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
 
         self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
-        self.ui.outputImageComboBox.currentNodeChanged.connect(self.checkCanRunAnalysis)
+        self.ui.jacobianTemplateComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
+        self.ui.outputImageComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
         self.ui.jacobianInputListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunAnalysis))
         self.ui.covariatePathEdit.currentPathChanged.connect(self.checkCanRunAnalysis)
+        self.ui.templateMaskComboBox.currentNodeChanged.connect(self.checkCanGenerateImages)
+        self.ui.loadPickleButton.clicked.connect(self.unpickleDBM)
 
         self.ui.runGroupRegistrationButton.clicked.connect(self.runGroupRegistration)
 
@@ -436,7 +468,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.jacobianInputDirectory.directorySelected.connect(self.populateJacobianInputs)
         self.ui.generateTemplateButton.clicked.connect(self.onGenerateCovariatesTable)
-        self.ui.generateJacobianButton.clicked.connect(self.onGenerateJacobianImages)
+        self.ui.generateJacobianButton.clicked.connect(self.onRunJacobianAnalysis)
+        self.ui.generateImageButton.clicked.connect(self.onGenerateImages)
+
 
     def cleanup(self):
         """
@@ -454,6 +488,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.checkCanRunGroupRegistration()
         self.checkCanRunTemplateBuilding()
         self.checkCanRunAnalysis()
+        self.checkCanGenerateImages()
+        self.setupDBMCache()
 
     def exit(self):
         """
@@ -931,12 +967,21 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def checkCanRunGroupRegistration(self):
 
-        filePaths = self.getInputsForGroupRegistration()
-        self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory)
+        filePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
+        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+        if self.ui.initialTransformGWCheckBox.checked:
+            self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and len(landmarkPaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory) and self.ui.templateLandmarksGWSelector.currentNode()
+        else:
+            self.ui.runGroupRegistrationButton.enabled = self.ui.inTemplateComboBox.currentNode() and len(filePaths) > 0 and os.path.exists(self.ui.outputDirectoryButton.directory)
 
 
     def checkCanRunAnalysis(self):
-        self.ui.generateJacobianButton.enabled = self.ui.jacobianInputListWidget.count !=0 and self.ui.jacobianTemplateComboBox.currentNode() and self.ui.outputImageComboBox.currentNode() and os.path.exists(self.ui.covariatePathEdit.currentPath)
+        self.ui.generateJacobianButton.enabled = self.ui.jacobianInputListWidget.count !=0 and self.ui.jacobianTemplateComboBox.currentNode() and os.path.exists(self.ui.covariatePathEdit.currentPath)
+    
+    
+    def checkCanGenerateImages(self):
+        self.ui.generateImageButton.enabled = self.logic.dbm and self.ui.outputImageComboBox.currentNode() and (self.ui.jacobianTemplateComboBox.currentNode() or self.ui.templateMaskComboBox.currentNode())
+    
     
     def onRunTemplateBuilding(self):
         self.uiWidget.enabled = False
@@ -959,31 +1004,45 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
             raise e
-        
+    
 
-    def getInputsForGroupRegistration(self):
-        path = self.ui.inputDirectoryButton.directory
+    def getInputsFromDirectory(self, directory, extensions):
         filePaths = []
-        extensions = ['.nrrd', '.mha', '.nii.gz']
-        for file in os.listdir(path):
+        for file in os.listdir(directory):
             for ext in extensions:
                 if file.endswith(ext):
-                    filePaths.append(os.path.join(path, file))
+                    filePaths.append(os.path.join(directory, file))
                     break
 
         return filePaths
     
+
+    def comparePathBasenames(self, primaryList, secondaryList):
+        secondaryBasenames = [os.path.basename(x).split(os.extsep, 1)[0] for x in secondaryList]
+
+        for path in primaryList:
+            if os.path.basename(path).split(os.extsep, 1)[0] not in secondaryBasenames:
+                raise IOError("Missing matching file for: " + path)
+
     
+    def checkGWLandmarks(self):
+        imagePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
+        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+
+        self.comparePathBasenames(imagePaths, landmarkPaths)
     
     def runGroupRegistration(self):
         outputPath  = self.ui.outputDirectoryButton.directory
-        filePaths = self.getInputsForGroupRegistration()
+        filePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
+        initialTransformPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
 
         self.uiWidget.enabled = False
         self.ui.runGroupRegistrationButton.text = "Group registration in progess"
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Group registration failed."):
+                if self.ui.initialTransformGWCheckBox.checked:
+                    self.checkGWLandmarks()
                 self.logic.groupRegistrationANTsPy(
                     self.ui.inTemplateComboBox.currentNode(), 
                     filePaths, 
@@ -992,7 +1051,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.compositeRadioButton.checked,
                     self.ui.forwardCheckBox.checked,
                     self.ui.inverseCheckBox.checked,
-                    self.ui.transformedCheckBox.checked
+                    self.ui.transformedCheckBox.checked,
+                    self.ui.initialTransformGWCheckBox.checked,
+                    initialTransformPaths,
+                    self.ui.templateLandmarksGWSelector.currentNode()
+
                 )
             self.uiWidget.enabled = True
             self.ui.runGroupRegistrationButton.text = "Register"
@@ -1017,6 +1080,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.jacobianInputListWidget.addItem(os.path.basename(path))
 
 
+    def updateCovariateFactors(self, covariates):
+
+        self.ui.qValueComboBox.clear()
+
+        for factor in covariates:
+            self.ui.qValueComboBox.addItem(factor)
+    
     def onGenerateCovariatesTable(self):
         numberOfInputFiles = self.ui.jacobianInputListWidget.count
 
@@ -1063,13 +1133,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         qt.QDesktopServices().openUrl(qpath)
 
 
-    def onGenerateJacobianImages(self):
+    def onRunJacobianAnalysis(self):
 
         pathList = [self.ui.jacobianInputListWidget.item(x).text() for x in range(self.ui.jacobianInputListWidget.count)]
         pathList = [os.path.join(self.ui.jacobianInputDirectory.directory, x) for x in pathList]
         template = self.ui.jacobianTemplateComboBox.currentNode()
         templateMask = self.ui.templateMaskComboBox.currentNode()
-        outputImage = self.ui.outputImageComboBox.currentNode()
         covariatesFilePath = self.ui.covariatePathEdit.currentPath
         rformula = self.ui.formulaLineEdit.text
         
@@ -1079,15 +1148,56 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Jacobian Analysis failed."):
-                self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula, outputImage)
+                covariates = self.logic.generateJacobian(pathList, template, templateMask,covariatesFilePath, rformula)
+            self.updateCovariateFactors(covariates)
             self.uiWidget.enabled = True
             self.ui.generateJacobianButton.text = "Jacobian Analysis"
+            self.pickleDBM()
+            self.ui.loadCachePathLineEdit.currentPath = self.ui.cachePathLineEdit.currentPath
+            self.checkCanGenerateImages()
             slicer.app.processEvents()
         except Exception as e:
             self.uiWidget.enabled = True
             self.ui.generateJacobianButton.text = "Jacobian Analysis"
             slicer.app.processEvents()
             raise e
+        
+
+    def onGenerateImages(self):
+        template = self.ui.jacobianTemplateComboBox.currentNode()
+        templateMask = self.ui.templateMaskComboBox.currentNode()
+        outputImage = self.ui.outputImageComboBox.currentNode()
+        covariate = self.ui.qValueComboBox.currentText
+        
+        self.logic.generateImages(covariate, template, templateMask, outputImage)
+
+
+    def setupDBMCache(self):
+        tempFilePath = os.path.join(slicer.app.temporaryPath,"dbm.pickle" )
+        self.ui.cachePathLineEdit.currentPath = tempFilePath
+
+
+    def pickleDBM(self):
+
+        import pickle
+
+        with open(self.ui.cachePathLineEdit.currentPath, 'wb') as handle:
+            pickle.dump(self.logic.dbm, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+    def unpickleDBM(self):
+        import pickle
+        with open(self.ui.loadCachePathLineEdit.currentPath, 'rb') as handle:
+            self.logic.dbm = pickle.load(handle)
+
+        covariateOptions = self.logic.dbm['modelNames']
+        if 'Intercept' in covariateOptions:
+            covariateOptions.remove('Intercept')
+
+        self.updateCovariateFactors(covariateOptions)
+        self.checkCanGenerateImages()
+
+
 
 
 
@@ -1162,6 +1272,9 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                     module = getattr(module, modulePart)
                 importlib.reload(module)  # reload
 
+        self.dbm = None   
+
+    
     def setDefaultParameters(self, parameterNode):
         """
         Initialize parameter node with default settings.
@@ -1484,6 +1597,14 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
     
+    def getLandmarksForImage(self, imagePath, landmarkPaths):
+        basename = os.path.basename(imagePath).split(os.extsep, 1)[0]
+
+        for p in landmarkPaths:
+            if basename in p:
+                return p
+    
+    
     def groupRegistrationANTsPy(
             self, 
             template, 
@@ -1493,7 +1614,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             writeCompositeTransform=False, 
             outputForward=True, 
             outputInverse=True, 
-            outputTransformed=True
+            outputTransformed=True,
+            computeInitialTransform=False,
+            initialTransformPaths=None,
+            templateLandmarks = None
             ):
         
         import ants
@@ -1501,9 +1625,15 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         fixed = antsImageFromNode(template)
 
         for path in pathlist:
+            initialTransform = None
+            if computeInitialTransform:
+                landmarkPath = self.getLandmarksForImage(path, initialTransformPaths)
+                imageLandmarks = slicer.util.loadMarkups(landmarkPath)
+                initialTransform = createInitialTransform(templateLandmarks, imageLandmarks)
+                slicer.mrmlScene.RemoveNode(imageLandmarks)
             name, ext = os.path.basename(path).split(os.extsep, 1)
             moving = ants.image_read(path)
-            reg = ants.registration(fixed=fixed, moving=moving, type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
+            reg = ants.registration(fixed=fixed, moving=moving, initial_transform=initialTransform,type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
             if writeCompositeTransform:
                 if outputForward:
                     forwardName = os.path.join(outputDirectory, name +'-forward.h5')
@@ -1534,7 +1664,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             antsImage = ants.image_read(path)
             imageList.append(antsImage)
 
-        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType)
+        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType, iterations=1)
 
         nodeFromANTSImage(antstemplate, outputTemplate)
 
@@ -1650,7 +1780,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             slicer.util.pip_install('antspyx')
 
 
-    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula, outputImageNode):
+    def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula):
 
         import ants
 
@@ -1672,7 +1802,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         log_jacobian = ants.image_list_to_matrix(log_jacobian_image_list, template_mask)
 
         import pandas
-        import statsmodels
 
         df = pandas.read_csv(covariatesFilePath)
         availableFactors = df.columns.to_list()
@@ -1693,16 +1822,39 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         print(rformula)
 
 
-        dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula, verbose=True)
+        self.dbm = ants.ilr(covariates, {"log_jacobian" : log_jacobian}, rformula, verbose=True)
 
-        log_jacobian_p_values = dbm['pValues']['pval_group[T.b]']
+
+        covariateOptions = self.dbm['modelNames']
+        if 'Intercept' in covariateOptions:
+            covariateOptions.remove('Intercept')
+
+        return covariateOptions
+
+
+
+    def generateImages(self, targetCovariate, templateNode, templateMaskNode,outputImageNode):
+        import statsmodels
+        import ants
+
+        if templateMaskNode:
+            raw_mask = antsImageFromNode(templateMaskNode)
+            template_mask = ants.get_mask(raw_mask,1, 100, 0)
+        else:
+            template = antsImageFromNode(templateNode)
+            template_mask = ants.get_mask(template)
+
+        log_jacobian_p_values = self.dbm['pValues']['pval_'+ targetCovariate]
         log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
+        log_jacobian_beta_values = self.dbm['coefficientValues']['coef_'+ targetCovariate]
+        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)[0]
+        log_jacobian_beta_values_image = ants.matrix_to_images(np.reshape(log_jacobian_beta_values, (1, len(log_jacobian_beta_values))), template_mask)[0]
+        output_Image = ants.mask_image(log_jacobian_beta_values_image, ants.get_mask(log_jacobian_q_values_image))
 
-        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)
 
-        print(len(log_jacobian_q_values_image))
+        # get index of the correct covariate
 
-        nodeFromANTSImage(log_jacobian_q_values_image[0], outputImageNode)
+        nodeFromANTSImage(output_Image, outputImageNode)
 
 
 
