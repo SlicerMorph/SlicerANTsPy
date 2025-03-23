@@ -436,7 +436,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
         self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
+        self.ui.outputLandmarksSelector.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
+        self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunTemplateBuilding))
+        self.ui.initialTransformTBDirectoryButton.directoryChanged.connect(self.checkCanRunTemplateBuilding)
+        self.ui.initialTransformTBCheckBox.toggled.connect(self.checkCanRunTemplateBuilding)
 
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
         self.ui.inputDirectoryButton.directoryChanged.connect(self.checkCanRunGroupRegistration)
@@ -487,6 +491,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not os.path.exists(ANTsPyTemporaryPath()):
             os.makedirs(ANTsPyTemporaryPath())
             return
+
+        self.ui.templateOutputDirectoryButton.directory = slicer.app.defaultScenePath
 
 
     def cleanup(self):
@@ -979,7 +985,18 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     
     def checkCanRunTemplateBuilding(self):
-        self.ui.runTemplateBuilding.enabled = self.ui.inputFileListWidget.count !=0 and self.ui.outTemplateComboBox.currentNode()
+
+        filePaths = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+
+        if self.ui.initialTransformTBCheckBox.checked:
+            check = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 and (len(landmarkPaths) == len(filePaths)) and self.ui.outputLandmarksSelector.currentNode()
+            self.ui.runTemplateBuilding.enabled = check
+            if self.ui.initialTemplateComboBox.currentNode():
+                 self.ui.runTemplateBuilding.enabled =  self.ui.runTemplateBuilding.enabled and self.ui.templateLandmarksTBSelector.currentNode()
+
+        else:
+            self.ui.runTemplateBuilding.enabled = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 
     
     
     def checkCanRunGroupRegistration(self):
@@ -1007,13 +1024,22 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         try:
             with slicer.util.tryWithErrorDisplay("Template building failed."):
                 pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+                landmarksPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+                if self.ui.initialTransformTBCheckBox.checked:
+                    self.checkTBLandmarks()
                 self.logic.buildTemplateANTsPy(
                     self.ui.initialTemplateComboBox.currentNode(), 
                     pathList, 
                     self.ui.outTemplateComboBox.currentNode(), 
+                    self.ui.outputLandmarksSelector.currentNode(),
                     self.ui.templateTransformTypeComboBox.currentText,
-                    self.ui.iterationsSpinBox.value
+                    self.ui.iterationsSpinBox.value,
+                    self.ui.initialTransformTBCheckBox.checked,
+                    landmarksPaths,
+                    self.ui.templateLandmarksTBSelector.currentNode()
+
                 )
+            self.saveTemplateBuildingOutputs()
             self.uiWidget.enabled = True
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
@@ -1024,6 +1050,18 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             raise e
     
 
+    def saveTemplateBuildingOutputs(self):
+        outputDirectory = os.path.join(self.ui.templateOutputDirectoryButton.directory, "TemplateBuilding_{0}".format(time.time()))
+
+        templateFilePath = os.path.join(outputDirectory, self.ui.outTemplateComboBox.currentNode().GetName() + ".nii.gz")
+        slicer.util.saveNode(self.ui.outTemplateComboBox.currentNode(), templateFilePath)
+        if self.ui.outputLandmarksSelector.currentNode():
+            landmarksFilePath = os.path.join(outputDirectory, self.ui.outputLandmarksSelector.currentNode().GetName() + ".mrk.json")
+
+            slicer.util.saveNode(self.ui.outputLandmarksSelector.currentNode(), landmarksFilePath)
+
+    
+    
     def getInputsFromDirectory(self, directory, extensions):
         filePaths = []
         for file in os.listdir(directory):
@@ -1048,11 +1086,17 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
 
         self.comparePathBasenames(imagePaths, landmarkPaths)
+
+    def checkTBLandmarks(self):
+        imagePaths = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+
+        self.comparePathBasenames(imagePaths, landmarkPaths)
     
     def runGroupRegistration(self):
         outputPath  = self.ui.outputDirectoryButton.directory
         filePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
-        initialTransformPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
+        landmarksPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
 
         self.uiWidget.enabled = False
         self.ui.runGroupRegistrationButton.text = "Group registration in progess"
@@ -1071,7 +1115,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.inverseCheckBox.checked,
                     self.ui.transformedCheckBox.checked,
                     self.ui.initialTransformGWCheckBox.checked,
-                    initialTransformPaths,
+                    landmarksPaths,
                     self.ui.templateLandmarksGWSelector.currentNode()
 
                 )
@@ -1633,8 +1677,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             outputForward=True, 
             outputInverse=True, 
             outputTransformed=True,
-            computeInitialTransform=False,
-            initialTransformPaths=None,
+            useLandmarks=False,
+            landmarksPaths=None,
             templateLandmarks = None
             ):
         
@@ -1644,9 +1688,9 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
 
         for path in pathlist:
             initialTransform = None
-            if computeInitialTransform:
-                landmarkPath = self.getLandmarksForImage(path, initialTransformPaths)
-                imageLandmarks = slicer.util.loadMarkups(landmarkPath)
+            if useLandmarks:
+                imageLandmarksPath = self.getLandmarksForImage(path, landmarksPaths)
+                imageLandmarks = slicer.util.loadMarkups(imageLandmarksPath)
                 initialTransform = createInitialTransform(templateLandmarks, imageLandmarks)
                 slicer.mrmlScene.RemoveNode(imageLandmarks)
             name, ext = os.path.basename(path).split(os.extsep, 1)
@@ -1670,23 +1714,93 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             
     
     
-    def buildTemplateANTsPy(self, initialTemplate, pathList, outputTemplate, transformType, iterations):
+    def getAlignedImages(self,
+                        pathList,
+                        landmarksPaths,
+                        initialTemplate,
+                        templateLandmarks):
+
+        import ants
+
+        if initialTemplate:
+            fixedImage = antsImageFromNode(initialTemplate)
+            fixedLandmarks = templateLandmarks
+        else:
+            fixedImage = ants.image_read(pathList[0])
+            fixedLandmarksPath = self.getLandmarksForImage(pathList[0], landmarksPaths)
+            fixedLandmarks = slicer.util.loadMarkups(fixedLandmarksPath)
+
+        imageList = []
+
+        for path in pathList:
+            movingImage = ants.image_read(path)
+            landmarkPath = self.getLandmarksForImage(path, landmarksPaths)
+            movingLandmarks = slicer.util.loadMarkups(landmarkPath)
+
+            initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks)
+
+            alignedImage = ants.apply_transforms(fixedImage, movingImage, initialTransform)
+
+            imageList.append(alignedImage)
+
+            slicer.mrmlScene.RemoveNode(movingLandmarks)
+
+        if not initialTemplate:
+            slicer.mrmlScene.RemoveNode(fixedLandmarks)
+
+        return imageList
+
+        
+    
+    
+    def buildTemplateANTsPy(self, 
+                            initialTemplate, 
+                            pathList, 
+                            outputTemplate,
+                            outputLandmarks,
+                            transformType, 
+                            iterations=1, 
+                            useLandmarks=False, 
+                            landmarksPaths=None, 
+                            templateLandmarks=None):
         import ants
         antsInitialTemplate = None
         if initialTemplate:
             antsInitialTemplate = antsImageFromNode(initialTemplate)
 
-        imageList = []
-
-        for path in pathList:
-            antsImage = ants.image_read(path)
-            imageList.append(antsImage)
+        if useLandmarks:
+            imageList = self.getAlignedImages(pathList, landmarksPaths, initialTemplate, templateLandmarks)
+        else:
+            imageList = []
+            for path in pathList:
+                antsImage = ants.image_read(path)
+                imageList.append(antsImage)
 
         antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType, iterations=iterations)
 
         nodeFromANTSImage(antstemplate, outputTemplate)
 
         slicer.util.setSliceViewerLayers(background=outputTemplate)
+
+        if useLandmarks:
+            if initialTemplate:
+                self.copyLandmarks(templateLandmarks, outputLandmarks)
+            else:
+                fixedLandmarksPath = self.getLandmarksForImage(pathList[0], landmarksPaths)
+                firstLandmarks = slicer.util.loadMarkups(fixedLandmarksPath)
+                self.copyLandmarks(firstLandmarks, outputLandmarks)
+                slicer.mrmlScene.RemoveNode(firstLandmarks)
+
+            
+    
+    def copyLandmarks(self, source, destination, clear=True):
+        if clear:
+            destination.RemoveAllControlPoints()
+
+        for point in range(0, source.GetNumberOfControlPoints()):
+            pt = source.GetNthControlPointPosition(point)
+            destination.AddControlPoint(pt)
+
     
     def buildTemplate(
         self, initialTemplate, pathList, outputTemplate, stages, generalSettings
