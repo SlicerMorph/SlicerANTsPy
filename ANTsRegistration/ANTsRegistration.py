@@ -1686,7 +1686,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         import shutil
         fixed = antsImageFromNode(template)
 
-        for path in pathlist:
+        for i, path in enumerate(pathlist):
+
+            print("Registering image {0} of {1}".format(i+1, len(pathlist)))
+            slicer.app.processEvents()
             initialTransform = None
             if useLandmarks:
                 imageLandmarksPath = self.getLandmarksForImage(path, landmarksPaths)
