@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>691</width>
-    <height>1172</height>
+    <height>1210</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -23,7 +23,7 @@
       <enum>QTabWidget::North</enum>
      </property>
      <property name="currentIndex">
-      <number>2</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="pairwiseTab">
       <attribute name="title">
@@ -927,6 +927,16 @@
       </layout>
      </widget>
     </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="label_36">
+     <property name="text">
+      <string>ANTs Temporary Path:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="ctkDirectoryButton" name="antsPathDirectoryButton"/>
    </item>
    <item>
     <widget class="ctkCollapsibleButton" name="CommonSettings">

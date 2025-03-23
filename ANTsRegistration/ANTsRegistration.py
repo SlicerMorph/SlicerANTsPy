@@ -60,6 +60,15 @@ ANTsPyTransformTypes  = [
 ]
 
 
+def ANTsPyTemporaryPath():
+    return slicer.util.settingsValue("ANTsPy/TemporaryPath", os.path.join(slicer.app.defaultScenePath, "ANTsPyTemp"))
+
+def writeANTsPyTemporaryPath(path):
+    settings = qt.QSettings()
+
+    settings.setValue("ANTsPy/TemporaryPath", path)
+
+
 def itkTransformFromTransformNode(transformNode):
     """Convert the MRML transform node to an ITK transform."""
     import itk
@@ -68,7 +77,7 @@ def itkTransformFromTransformNode(transformNode):
         return None
 
     tempFilePath = os.path.join(
-        slicer.app.temporaryPath,
+        ANTsPyTemporaryPath(),
         "tempTransform_{0}.tfm".format(time.time()),
     )
     storageNode = slicer.vtkMRMLTransformStorageNode()
@@ -104,7 +113,7 @@ def transformNodeFromItkTransform(itkTransform, transformNode=None):
             )
 
     tempFilePath = os.path.join(
-        slicer.app.temporaryPath,
+        ANTsPyTemporaryPath(),
         "tempTransform_{0}.tfm".format(time.time()),
     )
     itk.transformwrite(itkTransform, tempFilePath)
@@ -118,7 +127,7 @@ def transformNodeFromItkTransform(itkTransform, transformNode=None):
 def antsImageFromNode(imageNode):
     import ants
     tempFilePath = os.path.join(
-        slicer.app.temporaryPath,
+        ANTsPyTemporaryPath(),
         "tempImage_{0}.nii.gz".format(time.time()),
     )
 
@@ -140,7 +149,7 @@ def nodeFromANTSImage(antsImage, imageNode=None):
 
 
     tempFilePath = os.path.join(
-        slicer.app.temporaryPath,
+        ANTsPyTemporaryPath(),
         "tempImage_{0}.nii.gz".format(time.time()),
     )
     ants.image_write(antsImage, tempFilePath)
@@ -195,7 +204,7 @@ def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='ri
     moving_landmarks_ants = antsLandmarksFromNode(moving_landmarks)
     xfrm = ants.fit_transform_to_paired_points(moving_landmarks_ants, fixed_landmarks_ants)
     tempFilePath = os.path.join(
-        slicer.app.temporaryPath,
+        ANTsPyTemporaryPath(),
         "tempTransform_{0}.h5".format(time.time()),
     )
     ants.write_transform(xfrm, tempFilePath)
@@ -470,6 +479,14 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.generateTemplateButton.clicked.connect(self.onGenerateCovariatesTable)
         self.ui.generateJacobianButton.clicked.connect(self.onRunJacobianAnalysis)
         self.ui.generateImageButton.clicked.connect(self.onGenerateImages)
+
+        self.ui.antsPathDirectoryButton.directory = ANTsPyTemporaryPath()
+
+        self.ui.antsPathDirectoryButton.directoryChanged.connect(writeANTsPyTemporaryPath)
+
+        if not os.path.exists(ANTsPyTemporaryPath()):
+            os.makedirs(ANTsPyTemporaryPath())
+            return
 
 
     def cleanup(self):
@@ -1173,7 +1190,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def setupDBMCache(self):
-        tempFilePath = os.path.join(slicer.app.temporaryPath,"dbm.pickle" )
+        tempFilePath = os.path.join(ANTsPyTemporaryPath(),"dbm.pickle" )
         self.ui.cachePathLineEdit.currentPath = tempFilePath
 
 
