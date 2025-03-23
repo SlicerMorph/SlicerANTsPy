@@ -430,6 +430,19 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.runRegistrationButton.connect(
             "clicked(bool)", self.onRunRegistrationButton
         )
+
+        self.ui.fixedImageNodeComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.movingImageNodeComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.fixedLandmarkSelector.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.movingLandmarkSelector.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.outputForwardTransformComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.outputInverseTransformComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.outputVolumeComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.initialTransformPWCheckBox.toggled.connect(self.checkCanRunPairwiseRegistration)
+
+
+
+
         self.ui.clearButton.connect("clicked(bool)", self.onClearButton)
         self.ui.removeButton.clicked.connect(self.onRemoveImagePaths)
         self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
@@ -509,6 +522,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.initializeParameterNode()
         self.logic.installANTsPyX()
         self.checkCanRunGroupRegistration()
+        self.checkCanRunPairwiseRegistration()
         self.checkCanRunTemplateBuilding()
         self.checkCanRunAnalysis()
         self.checkCanGenerateImages()
@@ -673,16 +687,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #     )
         # )
 
-        self.ui.runRegistrationButton.enabled = (
-            self.ui.fixedImageNodeComboBox.currentNodeID
-            and self.ui.movingImageNodeComboBox.currentNodeID
-            and (
-                self.ui.outputForwardTransformComboBox.currentNodeID
-                or self.ui.outputInverseTransformComboBox.currentNodeID
-                or self.ui.outputVolumeComboBox.currentNodeID
-            )
-        )
-
+        
         # All the GUI updates are done
         self._updatingGUIFromParameterNode = False
 
@@ -934,8 +939,20 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 forward = self.ui.outputForwardTransformComboBox.currentNode()
                 inverse = self.ui.outputInverseTransformComboBox.currentNode()
                 warped = self.ui.outputVolumeComboBox.currentNode()
+                fixedLandmarks = self.ui.fixedLandmarkSelector.currentNode()
+                movingLandmarks = self.ui.movingLandmarkSelector.currentNode()
 
-                self.logic.process_ANTsPY(self.ui.transformTypeComboBox.currentText, fixed, moving, forward, inverse, warped)
+                self.logic.process_ANTsPY(
+                    self.ui.transformTypeComboBox.currentText,
+                   fixed, 
+                   moving,
+                  forward,
+                   inverse, 
+                   warped, 
+                   self.ui.initialTransformPWCheckBox.checked,
+                   fixedLandmarks,
+                   movingLandmarks
+                   )
             
             self.ui.runRegistrationButton.text = "Run Registration"
             self.uiWidget.enabled = True
@@ -983,6 +1000,16 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
         self.checkCanRunTemplateBuilding()
 
+    
+    def checkCanRunPairwiseRegistration(self):
+
+        outputSet = self.ui.outputForwardTransformComboBox.currentNode() or self.ui.outputInverseTransformComboBox.currentNode() or self.ui.outputVolumeComboBox.currentNode()
+
+        self.ui.runRegistrationButton.enabled = outputSet and self.ui.fixedImageNodeComboBox.currentNode() and self.ui.movingImageNodeComboBox.currentNode()
+
+        if self.ui.initialTransformPWCheckBox.checked:
+            self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+    
     
     def checkCanRunTemplateBuilding(self):
 
@@ -1488,15 +1515,22 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             movingNode,
             forwardTransformNode,
             inverseTransformNode,
-            transformedImageNode
+            transformedImageNode,
+            useLandmarks,
+            fixedLandmarks,
+            movingLandmarks,
 
     ):
         import ants
 
         fixedImage = antsImageFromNode(fixedNode)
         movingImage = antsImageFromNode(movingNode)
+        initialTransform = None
 
-        reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True)
+        if useLandmarks:
+            initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks)
+
+        reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
 
         if forwardTransformNode:
             nodeFromANTSTransform(reg['fwdtransforms'], forwardTransformNode)
