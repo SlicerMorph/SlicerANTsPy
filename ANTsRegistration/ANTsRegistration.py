@@ -1011,7 +1011,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.initialTemplateComboBox.currentNode(), 
                     pathList, 
                     self.ui.outTemplateComboBox.currentNode(), 
-                    self.ui.templateTransformTypeComboBox.currentText
+                    self.ui.templateTransformTypeComboBox.currentText,
+                    self.ui.iterationsSpinBox.value
                 )
             self.uiWidget.enabled = True
             self.ui.runTemplateBuilding.text = "Run Template Building"
@@ -1669,7 +1670,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             
     
     
-    def buildTemplateANTsPy(self, initialTemplate, pathList, outputTemplate, transformType):
+    def buildTemplateANTsPy(self, initialTemplate, pathList, outputTemplate, transformType, iterations):
         import ants
         antsInitialTemplate = None
         if initialTemplate:
@@ -1681,7 +1682,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             antsImage = ants.image_read(path)
             imageList.append(antsImage)
 
-        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType, iterations=1)
+        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType, iterations=iterations)
 
         nodeFromANTSImage(antstemplate, outputTemplate)
 
