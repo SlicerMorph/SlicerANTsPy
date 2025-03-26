@@ -1054,11 +1054,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 landmarksPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
                 if self.ui.initialTransformTBCheckBox.checked:
                     self.checkTBLandmarks()
+                outputDirectory = os.path.join(self.ui.templateOutputDirectoryButton.directory, "TemplateBuilding_{0}".format(time.time()))
                 self.logic.buildTemplateANTsPy(
                     self.ui.initialTemplateComboBox.currentNode(), 
                     pathList, 
                     self.ui.outTemplateComboBox.currentNode(), 
                     self.ui.outputLandmarksSelector.currentNode(),
+                    outputDirectory,
                     self.ui.templateTransformTypeComboBox.currentText,
                     self.ui.iterationsSpinBox.value,
                     self.ui.initialTransformTBCheckBox.checked,
@@ -1066,7 +1068,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.templateLandmarksTBSelector.currentNode()
 
                 )
-            self.saveTemplateBuildingOutputs()
+            self.saveTemplateBuildingOutputs(outputDirectory)
             self.uiWidget.enabled = True
             self.ui.runTemplateBuilding.text = "Run Template Building"
             slicer.app.processEvents()
@@ -1077,8 +1079,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             raise e
     
 
-    def saveTemplateBuildingOutputs(self):
-        outputDirectory = os.path.join(self.ui.templateOutputDirectoryButton.directory, "TemplateBuilding_{0}".format(time.time()))
+    def saveTemplateBuildingOutputs(self, outputDirectory):
+        
 
         templateFilePath = os.path.join(outputDirectory, self.ui.outTemplateComboBox.currentNode().GetName() + ".nii.gz")
         slicer.util.saveNode(self.ui.outTemplateComboBox.currentNode(), templateFilePath)
@@ -1795,6 +1797,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                             pathList, 
                             outputTemplate,
                             outputLandmarks,
+                            outputDirectory,
                             transformType, 
                             iterations=1, 
                             useLandmarks=False, 
@@ -1813,11 +1816,23 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 antsImage = ants.image_read(path)
                 imageList.append(antsImage)
 
-        antstemplate = ants.build_template(initial_template=antsInitialTemplate, image_list=imageList, type_of_transform=transformType, iterations=iterations)
+        template = antsInitialTemplate       
 
-        nodeFromANTSImage(antstemplate, outputTemplate)
+        for i in range(0, iterations):
+            print("Template building iteration {0}".format(i))
+            slicer.app.processEvents()
+            template = ants.build_template(initial_template=template, image_list=imageList, type_of_transform=transformType, iterations=1)
 
-        slicer.util.setSliceViewerLayers(background=outputTemplate)
+            # If we are not on the last iteration, save the intermediate
+            if i < iterations - 1:
+                templateFilePath = os.path.join(outputDirectory, outputTemplate.GetName() + "-" + str(i) +".nii.gz")
+                if not os.path.exists(outputDirectory):
+                    os.makedirs(outputDirectory)
+                ants.image_write(template, templateFilePath)
+
+        nodeFromANTSImage(template, outputTemplate)
+
+        slicer.util.setSliceViewerLayers(background=outputTemplate, fit=True)
 
         if useLandmarks:
             if initialTemplate:
