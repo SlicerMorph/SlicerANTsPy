@@ -17,5 +17,8 @@ The ANTsPy library wraps image processing framework ANTs in Python. It includes 
 ## Official ANTsPy Documentation
 https://antspyx.readthedocs.io/en/latest/
 
+## Funding acknowledgement  
+SlicerANTsPy has been made available through funding from  the National Institutes of Health (NICHD/HD104435).
+
 
 
