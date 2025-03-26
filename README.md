@@ -1,7 +1,7 @@
 # SlicerANTsPy
 
 ## Advanced Normalization Tools (ANTs)
-[ANTs](https://github.com/ANTsX/ANTs) is a performant image registration library. An extension that exposes its antsRegistration functionality is available as part of the Slicer's extension catalog https://github.com/netstim/SlicerANTs
+[ANTs](https://github.com/ANTsX/ANTs) is a performant image registration library. An extension that exposes its core Registration functionality is available as part of the Slicer's extension catalog https://github.com/netstim/SlicerANTs
 
 ## ANTsPY
 The ANTsPy library wraps image processing framework ANTs in Python. It includes reading and writing of medical images, algorithms for registration, segmentation,  statistical learning. <br>
