@@ -12,6 +12,8 @@ The ANTsPy library wraps image processing framework ANTs in Python. It includes 
 * **Template:**  This exposes the [`ants.registration.build_template` module from the ANTsPy](https://antspyx.readthedocs.io/en/latest/ants.registration.html#module-ants.registration.build_template) in a GUI setting. The difference from the groupwise registration is that transient transforms and output volumes are not written preserved. The only output is the final template (saved into the scene) and intermediate templates (written to the output folder), if more than one iteration is specificed.
 * **Analysis (WIP):** This exposes the [`ants.registration.create_jacobian_determinant_image` module](https://antspyx.readthedocs.io/en/latest/ants.registration.html#module-ants.registration.create_jacobian_determinant_image). It requires an a reference template, and an output folder from the Groupwis registration in which subjects are deformably registered to the specified reference template. You need to provide a covariate list and a formula that will calculate the regression coeffiecients based on the jacobians and the specified covariates(s). power 
 
+<img src="./AntsPy_GUI.png">
+
 ## Official ANTsPy Documentation
 https://antspyx.readthedocs.io/en/latest/
 
