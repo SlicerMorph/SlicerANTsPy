@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>691</width>
-    <height>1172</height>
+    <height>1210</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -23,7 +23,7 @@
       <enum>QTabWidget::North</enum>
      </property>
      <property name="currentIndex">
-      <number>2</number>
+      <number>0</number>
      </property>
      <widget class="QWidget" name="pairwiseTab">
       <attribute name="title">
@@ -39,24 +39,30 @@
           <bool>false</bool>
          </property>
          <layout class="QGridLayout" name="gridLayout_2">
-          <item row="1" column="1" colspan="2">
-           <widget class="qMRMLNodeComboBox" name="movingImageNodeComboBox">
-            <property name="toolTip">
-             <string>This will set the selected Image as moving for the first metric of all stages.</string>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_11">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
             </property>
-            <property name="nodeTypes">
-             <stringlist>
-              <string>vtkMRMLScalarVolumeNode</string>
-             </stringlist>
+            <property name="text">
+             <string>Fixed Image: </string>
             </property>
-            <property name="noneEnabled">
+           </widget>
+          </item>
+          <item row="2" column="1" colspan="2">
+           <widget class="QComboBox" name="transformTypeComboBox">
+            <property name="editable">
              <bool>true</bool>
             </property>
-            <property name="addEnabled">
-             <bool>false</bool>
-            </property>
-            <property name="renameEnabled">
-             <bool>true</bool>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_22">
+            <property name="text">
+             <string>Transform Type:</string>
             </property>
            </widget>
           </item>
@@ -84,16 +90,24 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_11">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
+          <item row="1" column="1" colspan="2">
+           <widget class="qMRMLNodeComboBox" name="movingImageNodeComboBox">
+            <property name="toolTip">
+             <string>This will set the selected Image as moving for the first metric of all stages.</string>
             </property>
-            <property name="text">
-             <string>Fixed Image: </string>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLScalarVolumeNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -110,18 +124,83 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_22">
-            <property name="text">
-             <string>Transform Type:</string>
+          <item row="3" column="0" colspan="3">
+           <widget class="QGroupBox" name="groupBox_3">
+            <property name="title">
+             <string>Initial Transform</string>
             </property>
-           </widget>
-          </item>
-          <item row="2" column="1" colspan="2">
-           <widget class="QComboBox" name="transformTypeComboBox">
-            <property name="editable">
-             <bool>true</bool>
-            </property>
+            <layout class="QFormLayout" name="formLayout_14">
+             <item row="0" column="0">
+              <widget class="QLabel" name="label_43">
+               <property name="text">
+                <string>Compute landmark-based RIGID initial transform:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QCheckBox" name="initialTransformPWCheckBox">
+               <property name="text">
+                <string/>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="label_44">
+               <property name="text">
+                <string>Fixed landmarks:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="label_45">
+               <property name="text">
+                <string>moving landmarks</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="qMRMLNodeComboBox" name="fixedLandmarkSelector">
+               <property name="nodeTypes">
+                <stringlist notr="true">
+                 <string>vtkMRMLMarkupsFiducialNode</string>
+                </stringlist>
+               </property>
+               <property name="hideChildNodeTypes">
+                <stringlist notr="true"/>
+               </property>
+               <property name="noneEnabled">
+                <bool>true</bool>
+               </property>
+               <property name="addEnabled">
+                <bool>false</bool>
+               </property>
+               <property name="interactionNodeSingletonTag">
+                <string notr="true"/>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="qMRMLNodeComboBox" name="movingLandmarkSelector">
+               <property name="nodeTypes">
+                <stringlist notr="true">
+                 <string>vtkMRMLMarkupsFiducialNode</string>
+                </stringlist>
+               </property>
+               <property name="hideChildNodeTypes">
+                <stringlist notr="true"/>
+               </property>
+               <property name="noneEnabled">
+                <bool>true</bool>
+               </property>
+               <property name="addEnabled">
+                <bool>false</bool>
+               </property>
+               <property name="interactionNodeSingletonTag">
+                <string notr="true"/>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </widget>
           </item>
          </layout>
@@ -337,6 +416,85 @@
         </layout>
        </item>
        <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_7">
+         <item>
+          <widget class="QLabel" name="label_37">
+           <property name="text">
+            <string>Iterations:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="iterationsSpinBox">
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>5</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupBox_2">
+         <property name="title">
+          <string>Initial Transform - If no initial template is specified, it aligns to the first image/landmark pair in the input list</string>
+         </property>
+         <layout class="QFormLayout" name="formLayout_13">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_38">
+            <property name="text">
+             <string>Compute landmark-based RIGID initial transform:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QCheckBox" name="initialTransformTBCheckBox">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_39">
+            <property name="text">
+             <string>Template Landmarks (used if initial template is specified)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="qMRMLNodeComboBox" name="templateLandmarksTBSelector">
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLMarkupsFiducialNode</string>
+             </stringlist>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_40">
+            <property name="text">
+             <string>Landmarks Directory</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="ctkDirectoryButton" name="initialTransformTBDirectoryButton"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="selectImages">
          <property name="text">
           <string>Select input images ...</string>
@@ -418,6 +576,9 @@
            <property name="baseName">
             <string>Template</string>
            </property>
+           <property name="noneEnabled">
+            <bool>false</bool>
+           </property>
            <property name="renameEnabled">
             <bool>true</bool>
            </property>
@@ -425,6 +586,41 @@
             <string notr="true"/>
            </property>
           </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_41">
+           <property name="text">
+            <string>Output landmarks:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputLandmarksSelector">
+           <property name="nodeTypes">
+            <stringlist notr="true">
+             <string>vtkMRMLMarkupsFiducialNode</string>
+            </stringlist>
+           </property>
+           <property name="hideChildNodeTypes">
+            <stringlist notr="true"/>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="interactionNodeSingletonTag">
+            <string notr="true"/>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_42">
+           <property name="text">
+            <string>Output Directory:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="ctkDirectoryButton" name="templateOutputDirectoryButton"/>
          </item>
         </layout>
        </item>
@@ -616,7 +812,7 @@
           <item row="0" column="0">
            <widget class="QLabel" name="label_33">
             <property name="text">
-             <string>Compute landmark-based initial transform:</string>
+             <string>Compute landmark-based RIGID initial transform:</string>
             </property>
            </widget>
           </item>
@@ -630,7 +826,7 @@
           <item row="2" column="0">
            <widget class="QLabel" name="label_34">
             <property name="text">
-             <string>Transforms directory:</string>
+             <string>Landmarks directory:</string>
             </property>
            </widget>
           </item>
@@ -927,6 +1123,16 @@
       </layout>
      </widget>
     </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="label_36">
+     <property name="text">
+      <string>ANTs Temporary Path:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="ctkDirectoryButton" name="antsPathDirectoryButton"/>
    </item>
    <item>
     <widget class="ctkCollapsibleButton" name="CommonSettings">
@@ -1630,6 +1836,70 @@
     <hint type="destinationlabel">
      <x>470</x>
      <y>296</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>templateLandmarksTBSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>345</x>
+     <y>604</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>511</x>
+     <y>203</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputLandmarksSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>345</x>
+     <y>604</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>400</x>
+     <y>394</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>fixedLandmarkSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>345</x>
+     <y>604</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>488</x>
+     <y>234</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ANTsRegistration</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>movingLandmarkSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>345</x>
+     <y>604</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>488</x>
+     <y>263</y>
     </hint>
    </hints>
   </connection>
