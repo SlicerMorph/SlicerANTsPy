@@ -1,3 +1,5 @@
+<img src="./SlicerANTsPy.png" width="128">
+
 # SlicerANTsPy
 
 ## Advanced Normalization Tools (ANTs)
