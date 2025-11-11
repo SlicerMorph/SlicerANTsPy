@@ -1961,7 +1961,30 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         try:
             import ants
         except:
-            slicer.util.pip_install('antspyx')
+            import platform
+            if platform.system() == 'Linux':
+                import urllib.request
+                import tempfile
+                
+                # Download the wheel file from Box
+                download_url = 'https://app.box.com/shared/static/mu1gy26t80oopbtv3mndl5yveb6s4431.whl'
+                temp_dir = tempfile.gettempdir()
+                whl_filename = 'antspyx-0.6.2-cp312-cp312-linux_x86_64.whl'
+                whl_path = os.path.join(temp_dir, whl_filename)
+                
+                logging.info(f"Downloading antspyx wheel from {download_url}")
+                urllib.request.urlretrieve(download_url, whl_path)
+                logging.info(f"Downloaded to {whl_path}")
+                
+                slicer.util.pip_install(whl_path)
+                
+                # Clean up the downloaded file
+                try:
+                    os.remove(whl_path)
+                except:
+                    pass
+            else:
+                slicer.util.pip_install('antspyx')
 
 
     def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula):
