@@ -546,6 +546,242 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.averageInputDirectoryButton.directoryChanged.connect(self.checkCanRunAverage)
         self.ui.averageOutputVolumeComboBox.currentNodeChanged.connect(self.checkCanRunAverage)
         self.ui.runAverageButton.clicked.connect(self.onRunAverage)
+        
+        # Create Label Image Registration tab
+        self.setupLabelImageRegistrationTab()
+
+
+    def setupLabelImageRegistrationTab(self):
+        """Create and setup the Label Image Registration tab"""
+        # Create a new tab
+        self.labelImageRegTab = qt.QWidget()
+        self.ui.tabsWidget.addTab(self.labelImageRegTab, "Label Image Reg")
+        
+        # Create layout
+        labelImageRegLayout = qt.QFormLayout(self.labelImageRegTab)
+        
+        # Input/Output section
+        inputOutputCollapsible = ctk.ctkCollapsibleButton()
+        inputOutputCollapsible.text = "Input/Output"
+        labelImageRegLayout.addRow(inputOutputCollapsible)
+        inputOutputLayout = qt.QFormLayout(inputOutputCollapsible)
+        
+        # Fixed label image
+        self.labelFixedImageSelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedImageSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelFixedImageSelector.addEnabled = False
+        self.labelFixedImageSelector.removeEnabled = False
+        self.labelFixedImageSelector.noneEnabled = True
+        self.labelFixedImageSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedImageSelector.setToolTip("Select the fixed label image or segmentation")
+        inputOutputLayout.addRow("Fixed Label Image:", self.labelFixedImageSelector)
+        
+        # Fixed intensity image (optional)
+        self.labelFixedIntensitySelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.labelFixedIntensitySelector.addEnabled = False
+        self.labelFixedIntensitySelector.removeEnabled = False
+        self.labelFixedIntensitySelector.noneEnabled = True
+        self.labelFixedIntensitySelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedIntensitySelector.setToolTip("Optional: Select the fixed intensity image for guidance")
+        inputOutputLayout.addRow("Fixed Intensity (optional):", self.labelFixedIntensitySelector)
+        
+        # Moving label image
+        self.labelMovingImageSelector = slicer.qMRMLNodeComboBox()
+        self.labelMovingImageSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelMovingImageSelector.addEnabled = False
+        self.labelMovingImageSelector.removeEnabled = False
+        self.labelMovingImageSelector.noneEnabled = True
+        self.labelMovingImageSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelMovingImageSelector.setToolTip("Select the moving label image or segmentation")
+        inputOutputLayout.addRow("Moving Label Image:", self.labelMovingImageSelector)
+        
+        # Moving intensity image (optional)
+        self.labelMovingIntensitySelector = slicer.qMRMLNodeComboBox()
+        self.labelMovingIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.labelMovingIntensitySelector.addEnabled = False
+        self.labelMovingIntensitySelector.removeEnabled = False
+        self.labelMovingIntensitySelector.noneEnabled = True
+        self.labelMovingIntensitySelector.setMRMLScene(slicer.mrmlScene)
+        self.labelMovingIntensitySelector.setToolTip("Optional: Select the moving intensity image for guidance")
+        inputOutputLayout.addRow("Moving Intensity (optional):", self.labelMovingIntensitySelector)
+        
+        # Fixed mask (optional)
+        self.labelFixedMaskSelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelFixedMaskSelector.addEnabled = False
+        self.labelFixedMaskSelector.removeEnabled = False
+        self.labelFixedMaskSelector.noneEnabled = True
+        self.labelFixedMaskSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedMaskSelector.setToolTip("Optional: Mask for the fixed image to restrict registration region")
+        inputOutputLayout.addRow("Fixed Mask (optional):", self.labelFixedMaskSelector)
+        
+        # Moving mask (optional)
+        self.labelMovingMaskSelector = slicer.qMRMLNodeComboBox()
+        self.labelMovingMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelMovingMaskSelector.addEnabled = False
+        self.labelMovingMaskSelector.removeEnabled = False
+        self.labelMovingMaskSelector.noneEnabled = True
+        self.labelMovingMaskSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelMovingMaskSelector.setToolTip("Optional: Mask for the moving image to restrict registration region")
+        inputOutputLayout.addRow("Moving Mask (optional):", self.labelMovingMaskSelector)
+        
+        # Output forward transform
+        self.labelOutputForwardTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputForwardTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelOutputForwardTransformSelector.addEnabled = True
+        self.labelOutputForwardTransformSelector.removeEnabled = True
+        self.labelOutputForwardTransformSelector.renameEnabled = True
+        self.labelOutputForwardTransformSelector.noneEnabled = True
+        self.labelOutputForwardTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputForwardTransformSelector.setToolTip("Select or create the output forward transform")
+        self.labelOutputForwardTransformSelector.baseName = "LabelReg_Forward_Transform"
+        inputOutputLayout.addRow("Forward Transform:", self.labelOutputForwardTransformSelector)
+        
+        # Output inverse transform
+        self.labelOutputInverseTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputInverseTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelOutputInverseTransformSelector.addEnabled = True
+        self.labelOutputInverseTransformSelector.removeEnabled = True
+        self.labelOutputInverseTransformSelector.renameEnabled = True
+        self.labelOutputInverseTransformSelector.noneEnabled = True
+        self.labelOutputInverseTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputInverseTransformSelector.setToolTip("Select or create the output inverse transform")
+        self.labelOutputInverseTransformSelector.baseName = "LabelReg_Inverse_Transform"
+        inputOutputLayout.addRow("Inverse Transform:", self.labelOutputInverseTransformSelector)
+        
+        # Output warped moving label
+        self.labelOutputWarpedSelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputWarpedSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+        self.labelOutputWarpedSelector.addEnabled = True
+        self.labelOutputWarpedSelector.removeEnabled = True
+        self.labelOutputWarpedSelector.renameEnabled = True
+        self.labelOutputWarpedSelector.noneEnabled = True
+        self.labelOutputWarpedSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputWarpedSelector.setToolTip("Select or create the output warped moving label image")
+        self.labelOutputWarpedSelector.baseName = "LabelReg_Warped"
+        inputOutputLayout.addRow("Warped Moving Label:", self.labelOutputWarpedSelector)
+        
+        # Output warped moving intensity (optional)
+        self.labelOutputWarpedIntensitySelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputWarpedIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.labelOutputWarpedIntensitySelector.addEnabled = True
+        self.labelOutputWarpedIntensitySelector.removeEnabled = True
+        self.labelOutputWarpedIntensitySelector.renameEnabled = True
+        self.labelOutputWarpedIntensitySelector.noneEnabled = True
+        self.labelOutputWarpedIntensitySelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputWarpedIntensitySelector.setToolTip("Optional: Select or create the output warped moving intensity image")
+        self.labelOutputWarpedIntensitySelector.baseName = "LabelReg_Warped_Intensity"
+        inputOutputLayout.addRow("Warped Moving Intensity (optional):", self.labelOutputWarpedIntensitySelector)
+        
+        # Parameters section
+        parametersCollapsible = ctk.ctkCollapsibleButton()
+        parametersCollapsible.text = "Registration Parameters"
+        labelImageRegLayout.addRow(parametersCollapsible)
+        parametersLayout = qt.QFormLayout(parametersCollapsible)
+        
+        # Transform type
+        self.labelTransformTypeComboBox = qt.QComboBox()
+        self.labelTransformTypeComboBox.addItems(ANTsPyTransformTypes)
+        self.labelTransformTypeComboBox.setCurrentText("SyN")
+        self.labelTransformTypeComboBox.setToolTip("Type of transformation model")
+        parametersLayout.addRow("Transform Type:", self.labelTransformTypeComboBox)
+        
+        # Label image metric
+        self.labelMetricComboBox = qt.QComboBox()
+        self.labelMetricComboBox.addItems(["MeanSquares", "Mattes", "GC"])
+        self.labelMetricComboBox.setCurrentText("MeanSquares")
+        self.labelMetricComboBox.setToolTip("Metric for label overlap")
+        parametersLayout.addRow("Metric:", self.labelMetricComboBox)
+        
+        # Type of deformable transform
+        self.labelDeformableTransformComboBox = qt.QComboBox()
+        self.labelDeformableTransformComboBox.addItems(["SyN", "BSplineSyN", "TimeVaryingVelocityField", "TimeVaryingBSplineVelocityField"])
+        self.labelDeformableTransformComboBox.setCurrentText("SyN")
+        self.labelDeformableTransformComboBox.setToolTip("Type of deformable transform for nonlinear registration")
+        parametersLayout.addRow("Deformable Transform:", self.labelDeformableTransformComboBox)
+        
+        # Initial transforms (optional)
+        self.labelInitialTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelInitialTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelInitialTransformSelector.addEnabled = False
+        self.labelInitialTransformSelector.removeEnabled = False
+        self.labelInitialTransformSelector.noneEnabled = True
+        self.labelInitialTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelInitialTransformSelector.setToolTip("Optional: Initial transform to initialize the registration")
+        parametersLayout.addRow("Initial Transform (optional):", self.labelInitialTransformSelector)
+        
+        # Run button
+        self.runLabelRegistrationButton = qt.QPushButton("Run Label Registration")
+        self.runLabelRegistrationButton.toolTip = "Run label image registration"
+        self.runLabelRegistrationButton.enabled = False
+        labelImageRegLayout.addRow(self.runLabelRegistrationButton)
+        
+        # Connect signals
+        self.labelFixedImageSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelMovingImageSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputForwardTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputInverseTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputWarpedSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputWarpedIntensitySelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.runLabelRegistrationButton.clicked.connect(self.onRunLabelRegistration)
+    
+    def checkCanRunLabelRegistration(self):
+        """Check if label registration can be run"""
+        hasInputs = (self.labelFixedImageSelector.currentNode() and 
+                    self.labelMovingImageSelector.currentNode())
+        hasOutputs = (self.labelOutputForwardTransformSelector.currentNode() or
+                     self.labelOutputInverseTransformSelector.currentNode() or
+                     self.labelOutputWarpedSelector.currentNode() or
+                     self.labelOutputWarpedIntensitySelector.currentNode())
+        self.runLabelRegistrationButton.enabled = hasInputs and hasOutputs
+    
+    def onRunLabelRegistration(self):
+        """Execute label image registration"""
+        self.uiWidget.enabled = False
+        self.runLabelRegistrationButton.text = "Label registration in progress..."
+        slicer.app.processEvents()
+        
+        try:
+            with slicer.util.tryWithErrorDisplay("Label registration failed."):
+                fixedLabel = self.labelFixedImageSelector.currentNode()
+                movingLabel = self.labelMovingImageSelector.currentNode()
+                fixedIntensity = self.labelFixedIntensitySelector.currentNode()
+                movingIntensity = self.labelMovingIntensitySelector.currentNode()
+                fixedMask = self.labelFixedMaskSelector.currentNode()
+                movingMask = self.labelMovingMaskSelector.currentNode()
+                forwardTransform = self.labelOutputForwardTransformSelector.currentNode()
+                inverseTransform = self.labelOutputInverseTransformSelector.currentNode()
+                warpedLabel = self.labelOutputWarpedSelector.currentNode()
+                warpedIntensity = self.labelOutputWarpedIntensitySelector.currentNode()
+                transformType = self.labelTransformTypeComboBox.currentText
+                metric = self.labelMetricComboBox.currentText
+                deformableTransform = self.labelDeformableTransformComboBox.currentText
+                initialTransform = self.labelInitialTransformSelector.currentNode()
+                
+                self.logic.labelImageRegistration(
+                    fixedLabel,
+                    movingLabel,
+                    fixedIntensity,
+                    movingIntensity,
+                    fixedMask,
+                    movingMask,
+                    forwardTransform,
+                    inverseTransform,
+                    warpedLabel,
+                    warpedIntensity,
+                    transformType,
+                    metric,
+                    deformableTransform,
+                    initialTransform
+                )
+            
+            self.runLabelRegistrationButton.text = "Run Label Registration"
+            self.uiWidget.enabled = True
+        except Exception as e:
+            self.runLabelRegistrationButton.text = "Run Label Registration"
+            self.uiWidget.enabled = True
+            raise e
 
 
     def cleanup(self):
@@ -2292,6 +2528,179 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 raise RuntimeError("Image dimensions or headers mismatch. Images must be aligned to a common space.")
             else:
                 raise
+    
+    def labelImageRegistration(self, fixedLabelNode, movingLabelNode, fixedIntensityNode,
+                               movingIntensityNode, fixedMaskNode, movingMaskNode,
+                               forwardTransformNode, inverseTransformNode, warpedLabelNode, 
+                               warpedIntensityNode, transformType, metric, deformableTransform,
+                               initialTransformNode):
+        """
+        Register label images using ANTsPy with optional intensity images.
+        
+        :param fixedLabelNode: Fixed label map volume node or segmentation node
+        :param movingLabelNode: Moving label map volume node or segmentation node
+        :param fixedIntensityNode: Optional fixed intensity image node for guidance
+        :param movingIntensityNode: Optional moving intensity image node for guidance
+        :param fixedMaskNode: Optional mask for fixed image
+        :param movingMaskNode: Optional mask for moving image
+        :param forwardTransformNode: Output forward transform node
+        :param inverseTransformNode: Output inverse transform node
+        :param warpedLabelNode: Output warped moving label node
+        :param warpedIntensityNode: Optional output warped moving intensity node
+        :param transformType: Type of transform (e.g., 'SyN', 'Affine')
+        :param metric: Metric to use (e.g., 'MeanSquares', 'Mattes', 'GC')
+        :param deformableTransform: Type of deformable transform
+        :param initialTransformNode: Optional initial transform node
+        """
+        import ants
+        
+        logging.info("Starting label image registration")
+        
+        # Keep track of temporary nodes to clean up later
+        tempNodes = []
+        
+        try:
+            # Convert segmentations to labelmaps if needed
+            fixedLabelVolume = self._getLabelmapFromNode(fixedLabelNode, tempNodes)
+            movingLabelVolume = self._getLabelmapFromNode(movingLabelNode, tempNodes)
+            
+            # Convert Slicer nodes to ANTs images
+            fixedLabel = antsImageFromNode(fixedLabelVolume)
+            movingLabel = antsImageFromNode(movingLabelVolume)
+            
+            # Handle masks if provided
+            fixed_mask = None
+            moving_mask = None
+            if fixedMaskNode:
+                fixedMaskVolume = self._getLabelmapFromNode(fixedMaskNode, tempNodes)
+                fixed_mask = antsImageFromNode(fixedMaskVolume)
+            if movingMaskNode:
+                movingMaskVolume = self._getLabelmapFromNode(movingMaskNode, tempNodes)
+                moving_mask = antsImageFromNode(movingMaskVolume)
+            
+            # Handle initial transform if provided
+            initial_transform = None
+            if initialTransformNode:
+                initial_transform = self._getTransformListFromNode(initialTransformNode)
+            
+            # If intensity images are provided, use them for registration guidance
+            if fixedIntensityNode and movingIntensityNode:
+                logging.info("Using intensity images for registration guidance")
+                fixedIntensity = antsImageFromNode(fixedIntensityNode)
+                movingIntensity = antsImageFromNode(movingIntensityNode)
+                
+                # Register intensity images
+                result = ants.registration(
+                    fixed=fixedIntensity,
+                    moving=movingIntensity,
+                    type_of_transform=transformType,
+                    aff_metric=metric,
+                    syn_metric=metric,
+                    type_of_deformable_transform=deformableTransform,
+                    initial_transform=initial_transform,
+                    mask=fixed_mask,
+                    moving_mask=moving_mask,
+                    write_composite_transform=True
+                )
+            else:
+                # Register label images directly
+                logging.info("Registering label images directly")
+                result = ants.registration(
+                    fixed=fixedLabel,
+                    moving=movingLabel,
+                    type_of_transform=transformType,
+                    aff_metric=metric,
+                    syn_metric=metric,
+                    type_of_deformable_transform=deformableTransform,
+                    initial_transform=initial_transform,
+                    mask=fixed_mask,
+                    moving_mask=moving_mask,
+                    write_composite_transform=True
+                )
+            
+            # Save outputs
+            if forwardTransformNode:
+                nodeFromANTSTransform(result['fwdtransforms'], forwardTransformNode)
+            
+            if inverseTransformNode:
+                nodeFromANTSTransform(result['invtransforms'], inverseTransformNode)
+            
+            if warpedLabelNode:
+                # For label images, use nearest neighbor interpolation
+                warpedLabel = ants.apply_transforms(
+                    fixed=fixedLabel,
+                    moving=movingLabel,
+                    transformlist=result['fwdtransforms'],
+                    interpolator='nearestNeighbor'
+                )
+                nodeFromANTSImage(warpedLabel, warpedLabelNode)
+                slicer.util.setSliceViewerLayers(background=warpedLabelNode, fit=True)
+            
+            # If intensity images were used and warped intensity output is requested
+            if warpedIntensityNode and fixedIntensityNode and movingIntensityNode:
+                logging.info("Warping moving intensity image")
+                movingIntensity = antsImageFromNode(movingIntensityNode)
+                fixedIntensity = antsImageFromNode(fixedIntensityNode)
+                warpedIntensity = ants.apply_transforms(
+                    fixed=fixedIntensity,
+                    moving=movingIntensity,
+                    transformlist=result['fwdtransforms'],
+                    interpolator='linear'
+                )
+                nodeFromANTSImage(warpedIntensity, warpedIntensityNode)
+            
+            logging.info("Label image registration completed successfully")
+            
+        finally:
+            # Clean up temporary labelmap nodes created from segmentations
+            for tempNode in tempNodes:
+                slicer.mrmlScene.RemoveNode(tempNode)
+    
+    def _getLabelmapFromNode(self, node, tempNodes):
+        """
+        Convert a segmentation node to labelmap volume, or return the node if it's already a volume.
+        Temporary nodes created are added to tempNodes list for cleanup.
+        
+        :param node: vtkMRMLSegmentationNode, vtkMRMLLabelMapVolumeNode, or vtkMRMLScalarVolumeNode
+        :param tempNodes: List to store temporary nodes for later cleanup
+        :return: vtkMRMLLabelMapVolumeNode or vtkMRMLScalarVolumeNode
+        """
+        if node.IsA("vtkMRMLSegmentationNode"):
+            # Create a temporary labelmap volume from the segmentation
+            labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+            labelmapVolumeNode.SetName(node.GetName() + "_temp_labelmap")
+            
+            # Export all segments to labelmap
+            slicer.modules.segmentations.logic().ExportAllSegmentsToLabelmapNode(
+                node, labelmapVolumeNode
+            )
+            
+            # Add to temp nodes list for cleanup
+            tempNodes.append(labelmapVolumeNode)
+            
+            return labelmapVolumeNode
+        else:
+            # Already a volume node
+            return node
+    
+    def _getTransformListFromNode(self, transformNode):
+        """
+        Convert a Slicer transform node to a file path list for ANTs.
+        
+        :param transformNode: vtkMRMLTransformNode
+        :return: List of transform file paths
+        """
+        import tempfile
+        import os
+        
+        # Create a temporary file to store the transform
+        temp_dir = tempfile.gettempdir()
+        transform_path = os.path.join(temp_dir, transformNode.GetName() + "_temp.h5")
+        
+        # Save the transform to file
+        slicer.util.saveNode(transformNode, transform_path)
+        
+        return [transform_path]
 
 
 
