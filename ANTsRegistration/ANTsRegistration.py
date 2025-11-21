@@ -206,32 +206,35 @@ def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='ri
     
     tempFilePath = os.path.join(
         ANTsPyTemporaryPath(),
-        "tempTransform_{0}.h5".format(time.time()),
+        "tempTransform_{0}".format(time.time()),
     )
     
     # Handle different transform types
     transform_type_lower = transform_type.lower()
-    # Note: bspline/diffeo support disabled due to ANTsPy 0.6.1 bug with split_channels
-    # if transform_type_lower in ['bspline', 'diffeo']:
-    #     if domainImage is None:
-    #         raise ValueError(f"{transform_type} transform requires a domain_image parameter")
-    #     xfrm = ants.fit_transform_to_paired_points(
-    #         moving_landmarks_ants, 
-    #         fixed_landmarks_ants,
-    #         transform_type=transform_type_lower,
-    #         domain_image=domainImage,
-    #         number_of_fitting_levels=5
-    #     )
-    # else:
-    # For rigid, similarity, affine
-    xfrm = ants.fit_transform_to_paired_points(
-        moving_landmarks_ants, 
-        fixed_landmarks_ants,
-        transform_type=transform_type_lower
-    )
+    if transform_type_lower in ['bspline', 'diffeo']:
+        if domainImage is None:
+            raise ValueError(f"{transform_type} transform requires a domain_image parameter")
+        xfrm = ants.fit_transform_to_paired_points(
+            moving_landmarks_ants, 
+            fixed_landmarks_ants,
+            transform_type=transform_type_lower,
+            domain_image=domainImage,
+            number_of_fitting_levels=5
+        )
+        # For bspline/diffeo: convert to displacement field and save as .nii.gz
+        disp_field = ants.transform_to_displacement_field(xfrm, domainImage)
+        tempFilePath = tempFilePath + ".nii.gz"
+        ants.image_write(disp_field, tempFilePath)
+    else:
+        # For rigid, similarity, affine: save as .h5
+        tempFilePath = tempFilePath + ".h5"
+        xfrm = ants.fit_transform_to_paired_points(
+            moving_landmarks_ants, 
+            fixed_landmarks_ants,
+            transform_type=transform_type_lower
+        )
+        ants.write_transform(xfrm, tempFilePath)
     
-    ants.write_transform(xfrm, tempFilePath)
-
     return [tempFilePath]
 
 
@@ -519,6 +522,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.transformTypeComboBox.addItem(transformTypes)
             self.ui.templateTransformTypeComboBox.addItem(transformTypes)
             self.ui.groupTransformTypeComboBox.addItem(transformTypes)
+        
+        # Populate landmark transform type options
+        self.ui.landmarkTransformTypeComboBox.clear()
+        self.ui.landmarkTransformTypeComboBox.addItems(["Rigid", "Similarity", "Affine", "Bspline", "Diffeo"])
 
 
         self.ui.jacobianInputDirectory.directorySelected.connect(self.populateJacobianInputs)
@@ -1677,13 +1684,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         # If transformType is "None", only compute and save the initial transform without registration
         if transformType == "None":
             if initialTransform:
-                # Save the initial transform to the forward transform output
+                # For all transforms (including bspline), initialTransform is now a list of file paths
                 if forwardTransformNode:
-                    # initialTransform is a list of file paths, get the first one
                     nodeFromANTSTransform(initialTransform[0], forwardTransformNode)
-                # Apply the transform to create warped image if requested
                 if transformedImageNode:
-                    txfm = ants.read_transform(initialTransform[0])
                     warpedImage = ants.apply_transforms(fixed=fixedImage, moving=movingImage, transformlist=initialTransform)
                     nodeFromANTSImage(warpedImage, transformedImageNode)
                     slicer.util.setSliceViewerLayers(background = transformedImageNode)
@@ -1691,7 +1695,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 slicer.util.errorDisplay("Transform type is set to 'None' but no initial transform was specified.")
             return
 
-        # Perform full registration
+        # Perform full registration with initial transform
         reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
 
         if forwardTransformNode:
