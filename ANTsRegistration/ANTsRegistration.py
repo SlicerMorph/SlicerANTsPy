@@ -200,13 +200,36 @@ def antsLandmarksFromNode(node):
 
 def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='rigid', domainImage=None):
     import ants
+    
     fixed_landmarks_ants = antsLandmarksFromNode(fixed_landmarks)
     moving_landmarks_ants = antsLandmarksFromNode(moving_landmarks)
-    xfrm = ants.fit_transform_to_paired_points(moving_landmarks_ants, fixed_landmarks_ants)
+    
     tempFilePath = os.path.join(
         ANTsPyTemporaryPath(),
         "tempTransform_{0}.h5".format(time.time()),
     )
+    
+    # Handle different transform types
+    transform_type_lower = transform_type.lower()
+    # Note: bspline/diffeo support disabled due to ANTsPy 0.6.1 bug with split_channels
+    # if transform_type_lower in ['bspline', 'diffeo']:
+    #     if domainImage is None:
+    #         raise ValueError(f"{transform_type} transform requires a domain_image parameter")
+    #     xfrm = ants.fit_transform_to_paired_points(
+    #         moving_landmarks_ants, 
+    #         fixed_landmarks_ants,
+    #         transform_type=transform_type_lower,
+    #         domain_image=domainImage,
+    #         number_of_fitting_levels=5
+    #     )
+    # else:
+    # For rigid, similarity, affine
+    xfrm = ants.fit_transform_to_paired_points(
+        moving_landmarks_ants, 
+        fixed_landmarks_ants,
+        transform_type=transform_type_lower
+    )
+    
     ants.write_transform(xfrm, tempFilePath)
 
     return [tempFilePath]
@@ -438,7 +461,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputForwardTransformComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
         self.ui.outputInverseTransformComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
         self.ui.outputVolumeComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
-        self.ui.initialTransformPWCheckBox.toggled.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.transformTypeComboBox.currentTextChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.groupBox_3.toggled.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.useExistingTransformRadio.toggled.connect(self.onInitialTransformModeChanged)
+        self.ui.useLandmarkTransformRadio.toggled.connect(self.onInitialTransformModeChanged)
+        self.ui.existingTransformSelector.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.landmarkTransformTypeComboBox.currentTextChanged.connect(self.checkCanRunPairwiseRegistration)
 
 
 
@@ -486,6 +514,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )
 
         self.ui.CommonSettings.visible = False
+        self.ui.transformTypeComboBox.addItem("None")
         for transformTypes in ANTsPyTransformTypes:
             self.ui.transformTypeComboBox.addItem(transformTypes)
             self.ui.templateTransformTypeComboBox.addItem(transformTypes)
@@ -503,9 +532,13 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if not os.path.exists(ANTsPyTemporaryPath()):
             os.makedirs(ANTsPyTemporaryPath())
-            return
 
         self.ui.templateOutputDirectoryButton.directory = slicer.app.defaultScenePath
+        
+        # Average tab connections
+        self.ui.averageInputDirectoryButton.directoryChanged.connect(self.checkCanRunAverage)
+        self.ui.averageOutputVolumeComboBox.currentNodeChanged.connect(self.checkCanRunAverage)
+        self.ui.runAverageButton.clicked.connect(self.onRunAverage)
 
 
     def cleanup(self):
@@ -526,6 +559,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.checkCanRunTemplateBuilding()
         self.checkCanRunAnalysis()
         self.checkCanGenerateImages()
+        self.checkCanRunAverage()
         self.setupDBMCache()
 
     def exit(self):
@@ -939,8 +973,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 forward = self.ui.outputForwardTransformComboBox.currentNode()
                 inverse = self.ui.outputInverseTransformComboBox.currentNode()
                 warped = self.ui.outputVolumeComboBox.currentNode()
-                fixedLandmarks = self.ui.fixedLandmarkSelector.currentNode()
-                movingLandmarks = self.ui.movingLandmarkSelector.currentNode()
+                
+                # Determine initial transform parameters only if group box is checked
+                useInitialTransform = self.ui.groupBox_3.checked
+                useLandmarks = self.ui.useLandmarkTransformRadio.checked and useInitialTransform
+                useExistingTransform = self.ui.useExistingTransformRadio.checked and useInitialTransform
+                fixedLandmarks = self.ui.fixedLandmarkSelector.currentNode() if useLandmarks else None
+                movingLandmarks = self.ui.movingLandmarkSelector.currentNode() if useLandmarks else None
+                landmarkTransformType = self.ui.landmarkTransformTypeComboBox.currentText.lower() if useLandmarks else None
+                existingTransform = self.ui.existingTransformSelector.currentNode() if useExistingTransform else None
 
                 self.logic.process_ANTsPY(
                     self.ui.transformTypeComboBox.currentText,
@@ -949,9 +990,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                   forward,
                    inverse, 
                    warped, 
-                   self.ui.initialTransformPWCheckBox.checked,
+                   useLandmarks,
                    fixedLandmarks,
-                   movingLandmarks
+                   movingLandmarks,
+                   landmarkTransformType,
+                   existingTransform
                    )
             
             self.ui.runRegistrationButton.text = "Run Registration"
@@ -1001,14 +1044,48 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.checkCanRunTemplateBuilding()
 
     
+    def onInitialTransformModeChanged(self):
+        """Handle radio button changes for initial transform selection"""
+        useLandmarks = self.ui.useLandmarkTransformRadio.checked
+        useExisting = self.ui.useExistingTransformRadio.checked
+        
+        # Enable/disable landmark-related widgets
+        self.ui.landmarkTransformTypeComboBox.enabled = useLandmarks
+        self.ui.fixedLandmarkSelector.enabled = useLandmarks
+        self.ui.movingLandmarkSelector.enabled = useLandmarks
+        # Enable label widgets (find by looking for QLabel siblings)
+        for label in [self.ui.label_44, self.ui.label_45, self.ui.label_46]:
+            label.enabled = useLandmarks
+        
+        # Enable/disable existing transform selector
+        self.ui.existingTransformSelector.enabled = useExisting
+        
+        self.checkCanRunPairwiseRegistration()
+    
     def checkCanRunPairwiseRegistration(self):
 
         outputSet = self.ui.outputForwardTransformComboBox.currentNode() or self.ui.outputInverseTransformComboBox.currentNode() or self.ui.outputVolumeComboBox.currentNode()
 
         self.ui.runRegistrationButton.enabled = outputSet and self.ui.fixedImageNodeComboBox.currentNode() and self.ui.movingImageNodeComboBox.currentNode()
 
-        if self.ui.initialTransformPWCheckBox.checked:
-            self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+        # If transform type is "None", initial transform is required
+        if self.ui.transformTypeComboBox.currentText == "None":
+            # Must have initial transform group checked and valid selection
+            if not self.ui.groupBox_3.checked:
+                self.ui.runRegistrationButton.enabled = False
+            elif self.ui.useLandmarkTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+            elif self.ui.useExistingTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.existingTransformSelector.currentNode()
+            else:
+                self.ui.runRegistrationButton.enabled = False
+        # Otherwise, only check initial transform requirements if the group box is checked
+        elif self.ui.groupBox_3.checked:
+            # Check initial transform requirements based on which mode is selected
+            if self.ui.useLandmarkTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+            elif self.ui.useExistingTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.existingTransformSelector.currentNode()
     
     
     def checkCanRunTemplateBuilding(self):
@@ -1042,6 +1119,62 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def checkCanGenerateImages(self):
         self.ui.generateImageButton.enabled = self.logic.dbm and self.ui.outputImageComboBox.currentNode() and (self.ui.jacobianTemplateComboBox.currentNode() or self.ui.templateMaskComboBox.currentNode())
+    
+    
+    def checkCanRunAverage(self):
+        """Check if average can be computed based on valid inputs."""
+        directory = self.ui.averageInputDirectoryButton.directory
+        outputNode = self.ui.averageOutputVolumeComboBox.currentNode()
+        
+        hasValidInputs = False
+        if directory and os.path.isdir(directory):
+            # Check if there are image files
+            imageExtensions = ['.nii.gz', '.nii', '.nrrd', '.mha', '.mhd']
+            matchingFiles = [f for f in os.listdir(directory) 
+                           if any(f.endswith(ext) for ext in imageExtensions)]
+            hasValidInputs = len(matchingFiles) > 0
+        
+        self.ui.runAverageButton.enabled = hasValidInputs and outputNode is not None
+    
+    
+    def onRunAverage(self):
+        """Compute average of aligned images."""
+        self.uiWidget.enabled = False
+        self.ui.runAverageButton.text = "Computing average..."
+        slicer.app.processEvents()
+        
+        try:
+            directory = self.ui.averageInputDirectoryButton.directory
+            outputNode = self.ui.averageOutputVolumeComboBox.currentNode()
+            
+            # Get list of all image files
+            imageExtensions = ['.nii.gz', '.nii', '.nrrd', '.mha', '.mhd']
+            filePaths = []
+            for file in os.listdir(directory):
+                if any(file.endswith(ext) for ext in imageExtensions):
+                    filePaths.append(os.path.join(directory, file))
+            
+            if len(filePaths) == 0:
+                slicer.util.errorDisplay("No image files found in the directory.")
+                return
+            
+            # Compute average using ANTsPy
+            self.logic.computeAverageImage(filePaths, outputNode)
+            
+            # Display the result
+            slicer.util.setSliceViewerLayers(background=outputNode, fit=True)
+            slicer.util.infoDisplay(f"Successfully averaged {len(filePaths)} images.")
+            
+        except RuntimeError as e:
+            if "mismatch" in str(e).lower() or "dimension" in str(e).lower():
+                slicer.util.errorDisplay("To average, images need to be aligned to a common space.\n\nError: Images have mismatched dimensions or headers.")
+            else:
+                slicer.util.errorDisplay(f"Failed to compute average: {str(e)}")
+        except Exception as e:
+            slicer.util.errorDisplay(f"Failed to compute average: {str(e)}")
+        finally:
+            self.uiWidget.enabled = True
+            self.ui.runAverageButton.text = "Compute Average"
     
     
     def onRunTemplateBuilding(self):
@@ -1337,6 +1470,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         Called when the logic class is instantiated. Can be used for initializing member variables.
         """
         ITKANTsCommonLogic.__init__(self)
+        self._antsInstallChecked = False  # Track if ANTs installation has been checked
         if slicer.util.settingsValue(
             "Developer/DeveloperMode", False, converter=slicer.util.toBool
         ):
@@ -1521,6 +1655,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             useLandmarks,
             fixedLandmarks,
             movingLandmarks,
+            landmarkTransformType=None,
+            existingTransformNode=None,
 
     ):
         import ants
@@ -1529,9 +1665,33 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         movingImage = antsImageFromNode(movingNode)
         initialTransform = None
 
-        if useLandmarks:
-            initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks)
+        if useLandmarks and fixedLandmarks and movingLandmarks:
+            # Use landmark-based initial transform with specified type
+            transformTypeToUse = landmarkTransformType if landmarkTransformType else 'rigid'
+            # Pass fixedImage as domain_image for bspline/diffeo transforms
+            initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks, transformTypeToUse, domainImage=fixedImage)
+        elif existingTransformNode:
+            # Use existing transform from scene
+            initialTransform = self.convertTransformNodeToANTsFile(existingTransformNode)
 
+        # If transformType is "None", only compute and save the initial transform without registration
+        if transformType == "None":
+            if initialTransform:
+                # Save the initial transform to the forward transform output
+                if forwardTransformNode:
+                    # initialTransform is a list of file paths, get the first one
+                    nodeFromANTSTransform(initialTransform[0], forwardTransformNode)
+                # Apply the transform to create warped image if requested
+                if transformedImageNode:
+                    txfm = ants.read_transform(initialTransform[0])
+                    warpedImage = ants.apply_transforms(fixed=fixedImage, moving=movingImage, transformlist=initialTransform)
+                    nodeFromANTSImage(warpedImage, transformedImageNode)
+                    slicer.util.setSliceViewerLayers(background = transformedImageNode)
+            else:
+                slicer.util.errorDisplay("Transform type is set to 'None' but no initial transform was specified.")
+            return
+
+        # Perform full registration
         reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
 
         if forwardTransformNode:
@@ -1544,6 +1704,22 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             nodeFromANTSImage(reg['warpedmovout'], transformedImageNode)
             slicer.util.setSliceViewerLayers(background = transformedImageNode)
     
+    def convertTransformNodeToANTsFile(self, transformNode):
+        """Convert a Slicer transform node to an ANTs-compatible file and return the path."""
+        import ants
+        
+        tempFilePath = os.path.join(
+            ANTsPyTemporaryPath(),
+            "initialTransform_{0}.h5".format(time.time()),
+        )
+        
+        # Save the transform node to a file
+        storageNode = slicer.vtkMRMLTransformStorageNode()
+        storageNode.SetFileName(tempFilePath)
+        storageNode.WriteData(transformNode)
+        
+        # Return as a list (ANTs expects a list of transform files)
+        return [tempFilePath]
     
     
     def process(
@@ -1957,6 +2133,11 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             )
 
     def installANTsPyX(self):
+        # Only check installation once per session
+        if self._antsInstallChecked:
+            return
+        
+        self._antsInstallChecked = True
 
         try:
             import ants
@@ -2062,6 +2243,51 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         # get index of the correct covariate
 
         nodeFromANTSImage(output_Image, outputImageNode)
+
+
+    def computeAverageImage(self, filePaths, outputNode):
+        """
+        Compute average of aligned images.
+        
+        :param filePaths: List of file paths to images
+        :param outputNode: Output volume node to store the result
+        """
+        import ants
+        import numpy as np
+        
+        logging.info(f"Computing average of {len(filePaths)} images")
+        
+        try:
+            # Read all images
+            images = [ants.image_read(fp) for fp in filePaths]
+            
+            # Get the reference image (first one)
+            referenceImage = images[0]
+            
+            # Extract numpy arrays and compute mean
+            arrays = [img.numpy() for img in images]
+            meanArray = np.mean(arrays, axis=0)
+            
+            # Create new ANTs image from mean array, using reference image properties
+            averagedANTSImage = ants.from_numpy(
+                meanArray,
+                origin=referenceImage.origin,
+                spacing=referenceImage.spacing,
+                direction=referenceImage.direction
+            )
+            
+            # Convert to Slicer node
+            nodeFromANTSImage(averagedANTSImage, outputNode)
+            
+            logging.info("Average image computation completed successfully")
+            
+        except Exception as e:
+            # Re-raise with more context if it's a dimension mismatch
+            error_msg = str(e)
+            if "mismatch" in error_msg.lower() or "dimension" in error_msg.lower():
+                raise RuntimeError("Image dimensions or headers mismatch. Images must be aligned to a common space.")
+            else:
+                raise
 
 
 
