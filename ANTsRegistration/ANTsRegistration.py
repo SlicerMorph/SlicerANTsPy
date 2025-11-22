@@ -1593,6 +1593,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             with slicer.util.tryWithErrorDisplay("Group registration failed."):
                 if self.ui.initialTransformGWCheckBox.checked:
                     self.checkGWLandmarks()
+                saveAlignedLandmarks = self.ui.saveAlignedLandmarksCheckBox.checked
                 self.logic.groupRegistrationANTsPy(
                     self.ui.inTemplateComboBox.currentNode(), 
                     filePaths, 
@@ -1604,7 +1605,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.transformedCheckBox.checked,
                     self.ui.initialTransformGWCheckBox.checked,
                     landmarksPaths,
-                    self.ui.templateLandmarksGWSelector.currentNode()
+                    self.ui.templateLandmarksGWSelector.currentNode(),
+                    saveAlignedLandmarks
 
                 )
             self.uiWidget.enabled = True
@@ -2214,7 +2216,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             outputTransformed=True,
             useLandmarks=False,
             landmarksPaths=None,
-            templateLandmarks = None
+            templateLandmarks = None,
+            saveAlignedLandmarks=False
             ):
         
         import ants
@@ -2226,14 +2229,27 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             print("Registering image {0} of {1}".format(i+1, len(pathlist)))
             slicer.app.processEvents()
             initialTransform = None
+            imageLandmarks = None
             if useLandmarks:
                 imageLandmarksPath = self.getLandmarksForImage(path, landmarksPaths)
                 imageLandmarks = slicer.util.loadMarkups(imageLandmarksPath)
                 initialTransform = createInitialTransform(templateLandmarks, imageLandmarks)
-                slicer.mrmlScene.RemoveNode(imageLandmarks)
             name, ext = os.path.basename(path).split(os.extsep, 1)
             moving = ants.image_read(path)
             reg = ants.registration(fixed=fixed, moving=moving, initial_transform=initialTransform,type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
+            
+            # Save aligned landmarks if requested
+            if saveAlignedLandmarks and useLandmarks and imageLandmarks:
+                # Handle both composite and non-composite transform formats
+                transforms = reg['fwdtransforms']
+                if not isinstance(transforms, list):
+                    transforms = [transforms]
+                self.saveAlignedLandmarksToFile(imageLandmarks, transforms, outputDirectory, name)
+            
+            # Clean up landmarks node
+            if imageLandmarks:
+                slicer.mrmlScene.RemoveNode(imageLandmarks)
+            
             if writeCompositeTransform:
                 if outputForward:
                     forwardName = os.path.join(outputDirectory, name +'-forward.h5')
@@ -2351,6 +2367,56 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         for point in range(0, source.GetNumberOfControlPoints()):
             pt = source.GetNthControlPointPosition(point)
             destination.AddControlPoint(pt)
+    
+    def saveAlignedLandmarksToFile(self, landmarksNode, transformList, outputDirectory, baseName):
+        """Save transformed landmarks to file with -aligned.mrk.json suffix.
+        
+        Args:
+            landmarksNode: The landmarks node to transform
+            transformList: List of transform file paths from ANTs registration
+            outputDirectory: Directory where to save the aligned landmarks
+            baseName: Base name for the output file
+        """
+        import ants
+        
+        # Create output node for aligned landmarks
+        alignedLandmarksNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+        alignedLandmarksNode.SetName(baseName + '_aligned_temp')
+        
+        # Copy landmarks to new node
+        self.copyLandmarks(landmarksNode, alignedLandmarksNode)
+        
+        # Apply the transforms to each landmark point
+        # We need to apply the transforms in the proper order
+        for pointIndex in range(alignedLandmarksNode.GetNumberOfControlPoints()):
+            # Get the original point position (in RAS coordinates)
+            point = alignedLandmarksNode.GetNthControlPointPosition(pointIndex)
+            
+            # Convert from Slicer RAS to ANTs LPS
+            point_lps = [point[0] * -1, point[1] * -1, point[2]]
+            
+            # Apply transforms using ANTs
+            # transformList is typically a list with transforms in order
+            point_transformed = ants.apply_transforms_to_points(
+                3,  # dimensionality
+                [point_lps],
+                transformList
+            )
+            
+            # Convert back from ANTs LPS to Slicer RAS
+            point_ras = [point_transformed[0][0] * -1, point_transformed[0][1] * -1, point_transformed[0][2]]
+            
+            # Update the point position
+            alignedLandmarksNode.SetNthControlPointPosition(pointIndex, point_ras[0], point_ras[1], point_ras[2])
+        
+        # Save the aligned landmarks with the specified naming convention
+        outputPath = os.path.join(outputDirectory, baseName + '-aligned.mrk.json')
+        slicer.util.saveNode(alignedLandmarksNode, outputPath)
+        
+        # Clean up temporary node
+        slicer.mrmlScene.RemoveNode(alignedLandmarksNode)
+        
+        print(f"Saved aligned landmarks to: {outputPath}")
 
     
     def buildTemplate(

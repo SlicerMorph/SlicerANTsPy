@@ -906,6 +906,23 @@
             </property>
            </widget>
           </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_saveAlignedLMs">
+            <property name="text">
+             <string>Save volume aligned LMs:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QCheckBox" name="saveAlignedLandmarksCheckBox">
+            <property name="toolTip">
+             <string>Save the landmarks used for initialization in the new coordinate system with -aligned.mrk.json suffix</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
