@@ -33,10 +33,45 @@ This tutorial demonstrates a complete morphometric analysis workflow using the *
 ## Prerequisites
 
 ### Software Requirements
-- **SlicerANTsPy extension** - Install via Extension Manager in Slicer
-  - In Slicer: `View → Extension Manager → Install Extensions → Search "ANTsPy" → Install`
-  - Restart Slicer after installation
 
+#### 3D Slicer
+- Download and install the latest stable version of 3D Slicer from [slicer.org](https://download.slicer.org/)
+
+#### SlicerANTsPy Extension (Manual Installation Required)
+
+**Important:** This tutorial requires features currently available only in the development branch of SlicerANTsPy. The version in the Extension Manager does not yet include the necessary functionality.
+
+**Installation Steps:**
+
+1. **Clone the SlicerANTsPy repository:**
+   
+   Open a terminal (Mac/Linux) or Git Bash (Windows) and run:
+   
+   ```bash
+   cd ~/Desktop  # or your preferred location
+   git clone https://github.com/SlicerMorph/SlicerANTsPy.git
+   cd SlicerANTsPy
+   git checkout UI-updates
+   ```
+
+2. **Add the extension to Slicer:**
+   
+   - Launch 3D Slicer
+   - Go to `Edit → Application Settings`
+   - Click on **Modules** in the left panel
+   - Under **Additional module paths**, click the `>>` button to add a new path
+   - Click the folder icon and navigate to the `SlicerANTsPy` folder you just cloned
+   - Select the folder and click **OK**
+   - Click **OK** to close Application Settings
+   - **Restart Slicer**
+
+3. **Verify installation:**
+   
+   - After restarting, search for "ANTsRegistration" in the module search bar
+   - You should see the **ANTsRegistration** module with tabs: Pairwise, Template, Group-wise, Average, and Analysis
+   - If you don't see these tabs, double-check that you selected the correct folder path
+
+**Note:** Once these features are merged into the main branch and released through the Extension Manager, you can switch to the standard installation method.
 
 ### Hardware Recommendations
 We advise to run this tutorial using [MorphoCloudInstances](https://morphocloud.org) as registration operations are memory and compute intensive. Standard MorphoCloud instances (g3.l) provide 60GB of RAM and 16 cores. 
