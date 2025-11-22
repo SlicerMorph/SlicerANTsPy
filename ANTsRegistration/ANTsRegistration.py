@@ -727,9 +727,14 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Radio buttons for initial transform mode
         self.labelInitialTransformModeGroup = qt.QButtonGroup()
         
+        self.labelNoInitialTransformRadio = qt.QRadioButton("None (use default)")
+        self.labelNoInitialTransformRadio.setToolTip("No initial transform - will use ANTsPy default behavior")
+        self.labelNoInitialTransformRadio.setChecked(True)
+        self.labelInitialTransformModeGroup.addButton(self.labelNoInitialTransformRadio, 0)
+        initialTransformLayout.addRow(self.labelNoInitialTransformRadio)
+        
         self.labelUseCentroidRadio = qt.QRadioButton("Compute from label centroids")
         self.labelUseCentroidRadio.setToolTip("Calculate linear transform based on centers of mass of label images")
-        self.labelUseCentroidRadio.setChecked(True)
         self.labelInitialTransformModeGroup.addButton(self.labelUseCentroidRadio, 1)
         initialTransformLayout.addRow(self.labelUseCentroidRadio)
         
@@ -778,6 +783,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelOutputInverseTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
         self.labelOutputWarpedSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
         self.labelOutputWarpedIntensitySelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelNoInitialTransformRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
         self.labelUseCentroidRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
         self.labelUseExistingTransformRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
         self.labelExistingTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
@@ -785,6 +791,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def onLabelInitialTransformModeChanged(self):
         """Handle radio button changes for label initial transform selection"""
+        useNone = self.labelNoInitialTransformRadio.checked
         useCentroid = self.labelUseCentroidRadio.checked
         useExisting = self.labelUseExistingTransformRadio.checked
         
@@ -828,6 +835,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 deformableTransform = self.labelDeformableTransformComboBox.currentText
                 
                 # Determine initial transform mode and parameters
+                useNone = self.labelNoInitialTransformRadio.checked
                 useCentroid = self.labelUseCentroidRadio.checked
                 useExisting = self.labelUseExistingTransformRadio.checked
                 centroidTransformType = self.labelCentroidTransformTypeComboBox.currentText if useCentroid else None
@@ -2677,25 +2685,28 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             
             # Use ANTsPy's label_image_registration function
             logging.info(f"Running label image registration with {deformableTransform} deformable transform")
-            result = ants.registration.label_image_registration(
+            result = ants.label_image_registration(
                 fixed_label_images=[fixedLabel],
                 moving_label_images=[movingLabel],
                 fixed_intensity_images=fixedIntensityList,
                 moving_intensity_images=movingIntensityList,
                 fixed_mask=fixed_mask,
                 moving_mask=moving_mask,
-                initial_transform=initial_transform,
+                initial_transforms=initial_transform,
                 type_of_deformable_transform=deformableTransform,
                 label_image_weighting=1.0,
+                output_prefix='',
                 verbose=True
             )
             
-            # Save outputs
-            if forwardTransformNode:
-                nodeFromANTSTransform(result['fwdtransforms'], forwardTransformNode)
+            # Save outputs - result is a dict with 'fwdtransforms' and 'invtransforms' (lists of file paths)
+            if forwardTransformNode and len(result['fwdtransforms']) > 0:
+                # Load the first forward transform
+                nodeFromANTSTransform(result['fwdtransforms'][0], forwardTransformNode)
             
-            if inverseTransformNode:
-                nodeFromANTSTransform(result['invtransforms'], inverseTransformNode)
+            if inverseTransformNode and len(result['invtransforms']) > 0:
+                # Load the first inverse transform
+                nodeFromANTSTransform(result['invtransforms'][0], inverseTransformNode)
             
             if warpedLabelNode:
                 # For label images, use nearest neighbor interpolation
