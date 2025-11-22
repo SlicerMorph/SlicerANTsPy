@@ -2377,8 +2377,6 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             outputDirectory: Directory where to save the aligned landmarks
             baseName: Base name for the output file
         """
-        import ants
-        
         # Create output node for aligned landmarks
         alignedLandmarksNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
         alignedLandmarksNode.SetName(baseName + '_aligned_temp')
@@ -2386,34 +2384,24 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         # Copy landmarks to new node
         self.copyLandmarks(landmarksNode, alignedLandmarksNode)
         
-        # Apply the transforms to each landmark point
-        # We need to apply the transforms in the proper order
-        for pointIndex in range(alignedLandmarksNode.GetNumberOfControlPoints()):
-            # Get the original point position (in RAS coordinates)
-            point = alignedLandmarksNode.GetNthControlPointPosition(pointIndex)
-            
-            # Convert from Slicer RAS to ANTs LPS
-            point_lps = [point[0] * -1, point[1] * -1, point[2]]
-            
-            # Apply transforms using ANTs
-            # transformList is typically a list with transforms in order
-            point_transformed = ants.apply_transforms_to_points(
-                3,  # dimensionality
-                [point_lps],
-                transformList
-            )
-            
-            # Convert back from ANTs LPS to Slicer RAS
-            point_ras = [point_transformed[0][0] * -1, point_transformed[0][1] * -1, point_transformed[0][2]]
-            
-            # Update the point position
-            alignedLandmarksNode.SetNthControlPointPosition(pointIndex, point_ras[0], point_ras[1], point_ras[2])
+        # Load the ANTs transforms into a Slicer transform node
+        tempTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+        tempTransformNode.SetName('temp_transform')
+        
+        # Load each transform file - transformList is in the order they should be applied
+        for transformPath in transformList:
+            nodeFromANTSTransform(transformPath, tempTransformNode)
+        
+        # Apply the transform to the landmarks node
+        alignedLandmarksNode.SetAndObserveTransformNodeID(tempTransformNode.GetID())
+        alignedLandmarksNode.HardenTransform()
         
         # Save the aligned landmarks with the specified naming convention
         outputPath = os.path.join(outputDirectory, baseName + '-aligned.mrk.json')
         slicer.util.saveNode(alignedLandmarksNode, outputPath)
         
-        # Clean up temporary node
+        # Clean up temporary nodes
+        slicer.mrmlScene.RemoveNode(tempTransformNode)
         slicer.mrmlScene.RemoveNode(alignedLandmarksNode)
         
         print(f"Saved aligned landmarks to: {outputPath}")
