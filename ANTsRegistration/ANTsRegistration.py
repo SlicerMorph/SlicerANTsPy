@@ -2369,7 +2369,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             destination.AddControlPoint(pt)
     
     def saveAlignedLandmarksToFile(self, landmarksNode, transformList, outputDirectory, baseName):
-        """Save transformed landmarks to file with -aligned.mrk.json suffix.
+        """Save transformed landmarks to file with -transformed.mrk.json suffix.
         
         Args:
             landmarksNode: The landmarks node to transform
@@ -2379,7 +2379,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         """
         # Create output node for aligned landmarks
         alignedLandmarksNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-        alignedLandmarksNode.SetName(baseName + '_aligned_temp')
+        alignedLandmarksNode.SetName(baseName + '_transformed_temp')
         
         # Copy landmarks to new node
         self.copyLandmarks(landmarksNode, alignedLandmarksNode)
@@ -2396,15 +2396,15 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         alignedLandmarksNode.SetAndObserveTransformNodeID(tempTransformNode.GetID())
         alignedLandmarksNode.HardenTransform()
         
-        # Save the aligned landmarks with the specified naming convention
-        outputPath = os.path.join(outputDirectory, baseName + '-aligned.mrk.json')
+        # Save the aligned landmarks with -transformed suffix to match volume naming
+        outputPath = os.path.join(outputDirectory, baseName + '-transformed.mrk.json')
         slicer.util.saveNode(alignedLandmarksNode, outputPath)
         
         # Clean up temporary nodes
         slicer.mrmlScene.RemoveNode(tempTransformNode)
         slicer.mrmlScene.RemoveNode(alignedLandmarksNode)
         
-        print(f"Saved aligned landmarks to: {outputPath}")
+        print(f"Saved transformed landmarks to: {outputPath}")
 
     
     def buildTemplate(
