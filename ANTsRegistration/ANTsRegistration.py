@@ -1340,6 +1340,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onClearButton(self):
         self.ui.inputFileListWidget.clear()
         self.ui.clearButton.enabled = False
+        self.checkCanRunTemplateBuilding()
 
     def onRemoveImagePaths(self):
         selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
@@ -1392,6 +1393,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onClearLandmarks(self):
         self.ui.landmarkFileListWidget.clear()
         self.ui.clearLandmarkButton.enabled = False
+        self.checkCanRunTemplateBuilding()
     
     def onRemoveLandmarkPaths(self):
         selectedItemRows = [self.ui.landmarkFileListWidget.row(x) for x in self.ui.landmarkFileListWidget.selectedItems()]

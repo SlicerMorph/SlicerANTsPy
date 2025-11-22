@@ -18,36 +18,29 @@ A comprehensive guide to template building, registration, and Jacobian analysis 
 ## Introduction
 
 This tutorial demonstrates a complete morphometric analysis workflow using the **ANTsRegistration** module in 3D Slicer. You will:
-
+- Create one canonically oriented sample as a reference
 - Build a population-averaged template from mouse microCT scans
 - Register individual specimens to the template
 - Perform statistical shape analysis using Jacobian determinants
 - Compare morphological variation between groups
 
-**Dataset:** Low-resolution mouse head microCT scans from 29 different inbred and hybrid mouse strains, with 45 craniometric landmarks per specimen.
+**Dataset:** Low-resolution mouse head microCT scans from 29 different inbred and hybrid mouse strains, with 45 craniometric landmarks per specimen. Landmarks are necessary to provide an initial alignment, as most automated registration methods fail if the positional difference between two volumes are too large. Most cases you do not need as many landmark to do an approximate alignment, 4-8 are usually enough.
 
-**Biological Context:** Mouse strains exhibit significant cranial shape variation due to genetic differences. This tutorial shows how to quantify and analyze these differences.
+**Biological Context:** Mouse strains exhibit cranial shape variation due to genetic differences. This tutorial shows how to quantify and analyze these differences.
 
 ---
 
 ## Prerequisites
 
 ### Software Requirements
-- **3D Slicer** (version 5.2 or later) - [Download here](https://download.slicer.org/)
 - **SlicerANTsPy extension** - Install via Extension Manager in Slicer
   - In Slicer: `View → Extension Manager → Install Extensions → Search "ANTsPy" → Install`
   - Restart Slicer after installation
 
-### Knowledge Requirements
-- Basic familiarity with 3D Slicer interface
-- Understanding of image registration concepts (optional but helpful)
-- Basic statistics knowledge for interpretation
 
 ### Hardware Recommendations
-- **RAM:** 8GB minimum, 16GB+ recommended
-- **Storage:** ~2GB free space for data and outputs
-- **CPU:** Multi-core processor (registration is computationally intensive)
-
+We advise to run this tutorial using [MorphoCloudInstances](https://morphocloud.org) as registration operations are memory and compute intensive. Standard MorphoCloud instances (g3.l) provide 60GB of RAM and 16 cores. 
+If you plan to use your own computer, we advise using a computer with at least **16G of RAM**. Similarly we advise using a **CPU** with many cores as the registration will benefit from increased parallelism. 
 ---
 
 ## Step 1: Obtaining the Data
@@ -97,15 +90,9 @@ The dataset includes these mouse strains (we'll use all 29 for this tutorial):
 
 ## Step 2: Loading Data into 3D Slicer
 
-### Launch 3D Slicer
+### Launch 3D Slicer and Load Sample Volumes
 
 1. Open 3D Slicer
-2. Create a new scene: `File → Close Scene` (to start fresh)
-
-### Load Sample Volumes
-
-We'll start by loading a few samples to visualize the data:
-
 1. Go to `File → Add Data`
 2. Click `Choose File(s) to Add`
 3. Navigate to `ANTsamples/volumes/`
@@ -143,9 +130,9 @@ We'll start by loading a few samples to visualize the data:
    - Landmarks will appear as small spheres on the skull
    - Adjust visibility/size in the Display section if needed
 
-### Understanding the Coordinate System
+### Understanding the data better
 
-- These data use **LPS** coordinates: Left-Posterior-Superior
+- None of the samples are oriented canonically; slice planes to not correspond to anatomical planes.
 - Landmarks are in millimeters (mm)
 - Each specimen has 45 anatomical landmarks on the skull
 
@@ -162,7 +149,7 @@ Using a reference specimen (rather than starting from scratch) has advantages an
 **Advantages:**
 - Faster convergence during template building
 - More anatomically meaningful starting point
-- Easier to interpret results in familiar orientation
+- Easier to interpret results in consistent anatomical orientations
 
 **Disadvantages:**
 - **Shape bias:** The final template may retain some shape characteristics of the reference specimen
@@ -170,7 +157,7 @@ Using a reference specimen (rather than starting from scratch) has advantages an
 - **Asymmetry bias:** If the reference has asymmetries, these may persist
 - **Selection bias:** Choosing one strain over others introduces systematic bias
 
-**Best Practice:** To minimize bias, we'll create an average of rigidly aligned specimens rather than using a single specimen directly. This provides a reasonable starting point while reducing individual specimen bias.
+**Best Practice:** To minimize bias, we'll create an average of rigidly aligned specimens rather than using an actual specimen from our dataset as references. This provides a reasonable starting point while reducing individual specimen bias.
 
 ### Step 3A: Reorient a Reference Specimen
 
@@ -178,6 +165,7 @@ We'll use the **NZBWF1_J_** specimen as our initial reference and reorient it so
 
 #### Load the Reference Specimen
 
+0. Reset the scene to remove other data.
 1. If not already loaded: `File → Add Data`
 2. Navigate to `ANTsamples/volumes/`
 3. Select `NZBWF1_J_.nii.gz`
@@ -190,58 +178,21 @@ We'll use the **NZBWF1_J_** specimen as our initial reference and reorient it so
 
 For detailed instructions, see the [CropVolume tutorial](https://github.com/SlicerMorph/Tutorials/tree/main/Slicer_Modules/Crop_Volume#using-cropvolume-to-simulatenously-reorient-and-resample-your-data).
 
-#### Configure Crop Volume Settings
-
-1. **Input volume:** Select `NZBWF1_J_`
-
-2. **Input ROI:** Click "Create new AnnotationROI"
-   - A bounding box appears around the volume
-   - You'll see handles to adjust position and size
-
-3. **Adjust ROI orientation:**
-   - In the **ROI** section, you'll see rotation sliders (LR, PA, IS)
-   - Rotate the ROI box until the specimen's major axis aligns with anatomical planes:
-     - **Dorsal-ventral axis** should align with Superior-Inferior
-     - **Anterior-posterior axis** should align with Anterior-Posterior  
-     - **Left-right axis** should align with Left-Right
-   - Use the slice views to verify alignment in all three planes
-   - **Tip:** The skull's midline should be parallel to the sagittal plane
-
-4. **ROI Visibility:** 
-   - Check "Interactive Mode" to see real-time updates
-   - Adjust the ROI to include the entire specimen with minimal background
-
-5. **Spacing scale:** 
-   - Set to `1.0` (keeps original voxel spacing)
-   - Or adjust to resample (e.g., `0.5` for higher resolution, `2.0` for lower)
-
-6. **Interpolation:** 
-   - Select "Linear" for volumes
-   - This provides good quality for most purposes
-
-7. **Output Volume:**
-   - Click dropdown → "Create new Volume"
-   - Rename to `NZBWF1_J_reoriented`
 
 #### Apply Reorientation
 
 1. Click **Apply**
-2. The reoriented volume appears in the scene
-3. Verify in slice viewers that anatomical axes are aligned
+2. The reoriented volume appears in the scene (it will have the **Cropped** suffix)
+3. This will also create a new transformation in the scene that start with **Re-orient**
+3. Verify in slice viewers that anatomical planes are aligned with slice views.
 4. Save the result: Right-click `NZBWF1_J_reoriented` → Export to file
    - Save as `ANTsamples/NZBWF1_J_reoriented.nii.gz`
 
 **Important:** Also reorient the corresponding landmarks:
 
 1. Load `NZBWF1_J_.mrk.json` if not already loaded
-2. Apply the same transform to landmarks:
-   - Go to **Transforms** module
-   - Create a new transform from the ROI rotation
-   - Apply to the landmark node
-   - Harden transform
-   - Save as `ANTsamples/NZBWF1_J_reoriented.mrk.json`
-
-**Alternative approach:** You can also use the **Transforms** module directly to reorient both volume and landmarks simultaneously.
+2. Apply the same transform `NZBWF1_J_.mrk.json` landmarks and harden the transform to make it permenant.
+3. Save as `NZBWF1_J_reoriented.mrk.json` in the same folder where you save the volume from previous step.
 
 ### Step 3B: Rigidly Align All Specimens to Reference
 
@@ -261,7 +212,7 @@ Now we'll register all specimens to the reoriented reference using rigid registr
 
 2. **Transform Type:** Select `Rigid`
    - Only rotation and translation, no scaling or deformation
-   - Preserves the original shape of each specimen
+   - Preserves the original shape and size of each specimen
 
 3. **Input directory:** Click the folder icon
    - Navigate to `ANTsamples/volumes/`
@@ -274,12 +225,11 @@ Now we'll register all specimens to the reoriented reference using rigid registr
    - All rigidly aligned volumes will be saved here
 
 5. **Output transforms as:** Select `Composite (single file)` or `Separate files`
-   - Either option works for rigid transforms
-   - Composite is simpler to manage
-
+   - Either option works for rigid transforms since there will be only one output file.
+   
 6. **Output:** Check these boxes:
    - ☑ **Forward Transform** - Saves the rigid transformation
-   - ☐ **Inverse Transform** - Not needed for this step
+   - ☐ **Inverse Transform** - Not needed for this step, as all linear transformations (rigid, similarity, affine) are invertable.
    - ☑ **Transformed Volume** - **REQUIRED** - This is what we need for averaging
 
 #### Configure Landmark-based Initial Transform
@@ -300,7 +250,7 @@ To ensure accurate rigid alignment:
    - **Must check this** to save transformed landmarks
    - These are essential for creating averaged landmarks in Step 3C
    - Creates files with `-transformed.mrk.json` suffix
-   - Without these, you cannot compute the average landmark positions
+   - Without these, you cannot compute the average landmark positions for the averaged image.
 
 #### Run Group-wise Rigid Registration
 
@@ -308,6 +258,7 @@ To ensure accurate rigid alignment:
 
 2. **What happens:**
    - Each volume in the input directory is rigidly registered to `NZBWF1_J_reoriented`
+   - This will result in every transformed volume having the same orientation and image dimensions and resolution as the reference image. 
    - Landmark-based rigid transform is computed first for initialization
    - Final rigid registration refines the alignment
    - Outputs are saved to `ANTsamples/RigidAligned/`
@@ -349,7 +300,7 @@ Navigate to `ANTsamples/RigidAligned/` and you should see:
 
 ### Step 3C: Create Average Reference Volume
 
-Now we'll create an average of all rigidly aligned specimens. This becomes our unbiased initial template.
+Now we'll create an average of all rigidly aligned specimens. This becomes our unbiased initial reference volume to initialize the iterative template building procedure.
 
 #### Open ANTsRegistration Module - Average Tab
 
@@ -390,7 +341,7 @@ Now we'll create an average of all rigidly aligned specimens. This becomes our u
 
 #### Create Average Landmarks (REQUIRED)
 
-**Critical:** You must average the landmark positions to match your averaged volume. 
+**Critical:** You must average the landmark positions to match your averaged volume. There is no tool in ANTsPy extension to do that. We will use a simple python script to do this in Slicer.
 
 1. **Load all transformed landmark files:**
    - `File → Add Data`
@@ -488,23 +439,17 @@ else:
    - For most analyses, this effect is small if you use 2+ iterations
 
 3. **Alternative: No initial template:**
-   - Setting "Initial Template" to `None` uses a simple mean of all images
-   - This is more unbiased but may take longer to converge
-   - May result in blurrier initial template
-
-4. **Best practice for publication:**
-   - Document your choice of reference specimen
-   - Report that you used a rigid average (not a single specimen)
-   - Consider testing with different references to assess sensitivity
-   - For critical studies, build templates with and without initial reference
-
+   - Setting "Initial Template" to `None` it uses the first sample in your pool as the reference. We don't advise doing that except for testing purposes. 
+ 
 **For this tutorial:** Using a rigid average provides a good balance between computational efficiency and minimizing bias.
 
 ---
 
 ## Step 4: Building a Population Template
 
-Template building creates an average shape representing your population. We'll use **landmark-based initialization** for better alignment, then run **2 iterations** of template refinement.
+**Overview:** Template building creates an average shape representing your population using deformable registration. We'll use the original unaligned volumes as the input volumes, and use the landmarks to bring them into alignment with the reference, then run **2 iterations** of template refinement. At the end of the first step module will calculate a new template, and start the second iteration using that template as the reference. 
+
+**TO DO: Explain why we are not using the output of our rigid registration (-transformed volumes) as input to this procedure. Effects of doing image resampling multiple times etc...
 
 ### Open the ANTsRegistration Module
 
@@ -518,16 +463,14 @@ Template building creates an average shape representing your population. We'll u
 
 - **Initial Template:** Select `RigidAverage_Template`
   - This is the averaged volume we created from rigidly aligned specimens
-  - Using this provides a better starting point than a simple mean
+  - Using this provides a better starting point than a specific sample.
   - Reduces computational time and improves convergence
-  - **Alternative:** Set to `None` to use a simple mean (more unbiased but slower)
-
+  
 #### B. Transform Type
 
 - **Transform Type:** Select `SyN` (Symmetric Normalization)
   - This is a deformable registration that can capture shape differences
-  - Other options: `Rigid`, `Affine`, `SyNRA`, `SyNCC`, etc.
-
+  
 #### C. Number of Iterations
 
 - **Iterations:** Set to `2`
@@ -555,7 +498,7 @@ Template building creates an average shape representing your population. We'll u
 
 ### Configure Landmark-based Initial Transform
 
-This ensures specimens are roughly aligned before template building begins.
+This ensures specimens are aligned to the reference before template building begins.
 
 1. Check ☑ **"Compute landmark-based RIGID initial transform"**
 
@@ -608,8 +551,9 @@ This ensures specimens are roughly aligned before template building begins.
 
 2. **What happens:**
    - Initial alignment: Each specimen is rigidly aligned to the first specimen using landmarks
-   - Iteration 1: All specimens are registered to the current template, template is updated
-   - Iteration 2: Registration and template update repeated
+   - Iteration 1: All specimens are registered to the specified template, and then the template is updated
+   - Iteration 2 (and subsequent iterations): Re-registrat the samples to the updated template
+   - Calculate the final template.
    - Output files are saved to the output directory
 
 3. **Progress monitoring:**
@@ -630,6 +574,7 @@ This ensures specimens are roughly aligned before template building begins.
 2. Click the eye icon to show it in the viewers
 3. In the **Markups** module, select `Template_Landmarks`
 4. The template represents the average cranial shape of all 29 mouse strains
+5. Review for anatomical detail. You can try increasing the number of iterations. 
 
 ### Save the Template
 
@@ -645,12 +590,11 @@ This ensures specimens are roughly aligned before template building begins.
 
 ## Step 5: Group-wise Registration to Template
 
-Now we'll register all individual specimens to the template and save the deformation fields (needed for Jacobian analysis).
+Now we'll register all individual specimens to the template and save the deformation fields (needed for Jacobian analysis). These deformations are going to be used to calculate systematic localized shape difference between groups. 
 
 ### Open the Group-wise Tab
 
-1. Stay in the **ANTsRegistration** module
-2. Click the **"Group-wise"** tab
+Click the **"Group-wise"** tab
 
 ### Configure Registration Settings
 
@@ -663,7 +607,7 @@ Now we'll register all individual specimens to the template and save the deforma
 #### B. Transform Type
 
 - **Transform Type:** Select `SyN`
-  - Must match what you used for template building
+  - Must match what you saved as the output of the  template building
   - SyN provides deformable registration
 
 #### C. Input Directory
@@ -685,7 +629,7 @@ Now we'll register all individual specimens to the template and save the deforma
 - **Output transforms as:** Select `Separate files`
   - Creates individual forward and inverse transform files
   - **Required for Jacobian analysis** to isolate deformable component
-  - Composite transforms include affine components that can mask subtle shape differences
+  - Composite transforms include affine component of the deformation that can mask subtle shape differences
 
 **Why separate files?**
 - Jacobian analysis should use only the deformable (warp) component
@@ -733,8 +677,8 @@ The numbering (0, 1) indicates the order of application:
 Check the boxes for what you want:
 
 - ☑ **Forward Transform** - **REQUIRED** for Jacobian analysis (deformable component)
-- ☐ **Inverse Transform** - Optional (useful for mapping results back to specimen space)
-- ☑ **Transformed Volume** - Optional (useful to verify registration quality)
+- ☐ **Inverse Transform** - Optional, but suggested (useful for mapping results back to specimen space)
+- ☑ **Transformed Volume** - Optional, but suggested (useful to verify registration quality)
 
 **Important:** You MUST save forward transforms for Jacobian analysis!
 
