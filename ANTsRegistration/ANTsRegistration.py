@@ -576,7 +576,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelFixedImageSelector.setToolTip("Select the fixed label image or segmentation")
         inputOutputLayout.addRow("Fixed Label Image:", self.labelFixedImageSelector)
         
-        # Fixed intensity image (optional)
+        # Fixed intensity image (optional) - indented
+        fixedIntensityLayout = qt.QHBoxLayout()
+        fixedIntensityLayout.addSpacing(20)
         self.labelFixedIntensitySelector = slicer.qMRMLNodeComboBox()
         self.labelFixedIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
         self.labelFixedIntensitySelector.addEnabled = False
@@ -584,7 +586,21 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelFixedIntensitySelector.noneEnabled = True
         self.labelFixedIntensitySelector.setMRMLScene(slicer.mrmlScene)
         self.labelFixedIntensitySelector.setToolTip("Optional: Select the fixed intensity image for guidance")
-        inputOutputLayout.addRow("Fixed Intensity (optional):", self.labelFixedIntensitySelector)
+        fixedIntensityLayout.addWidget(self.labelFixedIntensitySelector)
+        inputOutputLayout.addRow("  Fixed Intensity (optional):", fixedIntensityLayout)
+        
+        # Fixed mask (optional) - indented
+        fixedMaskLayout = qt.QHBoxLayout()
+        fixedMaskLayout.addSpacing(20)
+        self.labelFixedMaskSelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelFixedMaskSelector.addEnabled = False
+        self.labelFixedMaskSelector.removeEnabled = False
+        self.labelFixedMaskSelector.noneEnabled = True
+        self.labelFixedMaskSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedMaskSelector.setToolTip("Optional: Mask for the fixed image to restrict registration region")
+        fixedMaskLayout.addWidget(self.labelFixedMaskSelector)
+        inputOutputLayout.addRow("  Fixed Mask (optional):", fixedMaskLayout)
         
         # Moving label image
         self.labelMovingImageSelector = slicer.qMRMLNodeComboBox()
@@ -596,7 +612,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelMovingImageSelector.setToolTip("Select the moving label image or segmentation")
         inputOutputLayout.addRow("Moving Label Image:", self.labelMovingImageSelector)
         
-        # Moving intensity image (optional)
+        # Moving intensity image (optional) - indented
+        movingIntensityLayout = qt.QHBoxLayout()
+        movingIntensityLayout.addSpacing(20)
         self.labelMovingIntensitySelector = slicer.qMRMLNodeComboBox()
         self.labelMovingIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
         self.labelMovingIntensitySelector.addEnabled = False
@@ -604,19 +622,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelMovingIntensitySelector.noneEnabled = True
         self.labelMovingIntensitySelector.setMRMLScene(slicer.mrmlScene)
         self.labelMovingIntensitySelector.setToolTip("Optional: Select the moving intensity image for guidance")
-        inputOutputLayout.addRow("Moving Intensity (optional):", self.labelMovingIntensitySelector)
+        movingIntensityLayout.addWidget(self.labelMovingIntensitySelector)
+        inputOutputLayout.addRow("  Moving Intensity (optional):", movingIntensityLayout)
         
-        # Fixed mask (optional)
-        self.labelFixedMaskSelector = slicer.qMRMLNodeComboBox()
-        self.labelFixedMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
-        self.labelFixedMaskSelector.addEnabled = False
-        self.labelFixedMaskSelector.removeEnabled = False
-        self.labelFixedMaskSelector.noneEnabled = True
-        self.labelFixedMaskSelector.setMRMLScene(slicer.mrmlScene)
-        self.labelFixedMaskSelector.setToolTip("Optional: Mask for the fixed image to restrict registration region")
-        inputOutputLayout.addRow("Fixed Mask (optional):", self.labelFixedMaskSelector)
-        
-        # Moving mask (optional)
+        # Moving mask (optional) - indented
+        movingMaskLayout = qt.QHBoxLayout()
+        movingMaskLayout.addSpacing(20)
         self.labelMovingMaskSelector = slicer.qMRMLNodeComboBox()
         self.labelMovingMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
         self.labelMovingMaskSelector.addEnabled = False
@@ -624,7 +635,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelMovingMaskSelector.noneEnabled = True
         self.labelMovingMaskSelector.setMRMLScene(slicer.mrmlScene)
         self.labelMovingMaskSelector.setToolTip("Optional: Mask for the moving image to restrict registration region")
-        inputOutputLayout.addRow("Moving Mask (optional):", self.labelMovingMaskSelector)
+        movingMaskLayout.addWidget(self.labelMovingMaskSelector)
+        inputOutputLayout.addRow("  Moving Mask (optional):", movingMaskLayout)
         
         # Output forward transform
         self.labelOutputForwardTransformSelector = slicer.qMRMLNodeComboBox()
@@ -680,12 +692,23 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         labelImageRegLayout.addRow(parametersCollapsible)
         parametersLayout = qt.QFormLayout(parametersCollapsible)
         
-        # Transform type
-        self.labelTransformTypeComboBox = qt.QComboBox()
-        self.labelTransformTypeComboBox.addItems(ANTsPyTransformTypes)
-        self.labelTransformTypeComboBox.setCurrentText("SyN")
-        self.labelTransformTypeComboBox.setToolTip("Type of transformation model")
-        parametersLayout.addRow("Transform Type:", self.labelTransformTypeComboBox)
+        # Type of deformable transform (main parameter)
+        self.labelDeformableTransformComboBox = qt.QComboBox()
+        self.labelDeformableTransformComboBox.addItems([
+            "antsRegistrationSyNQuick[s]",
+            "antsRegistrationSyNQuick[b]",
+            "antsRegistrationSyNQuick[bo]",
+            "antsRegistrationSyNQuick[so]",
+            "antsRegistrationSyN[s]",
+            "antsRegistrationSyN[b]",
+            "antsRegistrationSyN[bo]",
+            "antsRegistrationSyN[so]",
+            "SyN",
+            "BSplineSyN"
+        ])
+        self.labelDeformableTransformComboBox.setCurrentText("antsRegistrationSyNQuick[so]")
+        self.labelDeformableTransformComboBox.setToolTip("Type of deformable transform (deformable-only transforms from antsRegistrationSyN*[so] or antsRegistrationSyN*[bo] family recommended)")
+        parametersLayout.addRow("Deformable Transform:", self.labelDeformableTransformComboBox)
         
         # Label image metric
         self.labelMetricComboBox = qt.QComboBox()
@@ -694,22 +717,53 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelMetricComboBox.setToolTip("Metric for label overlap")
         parametersLayout.addRow("Metric:", self.labelMetricComboBox)
         
-        # Type of deformable transform
-        self.labelDeformableTransformComboBox = qt.QComboBox()
-        self.labelDeformableTransformComboBox.addItems(["SyN", "BSplineSyN", "TimeVaryingVelocityField", "TimeVaryingBSplineVelocityField"])
-        self.labelDeformableTransformComboBox.setCurrentText("SyN")
-        self.labelDeformableTransformComboBox.setToolTip("Type of deformable transform for nonlinear registration")
-        parametersLayout.addRow("Deformable Transform:", self.labelDeformableTransformComboBox)
+        # Initial transform section (two modes)
+        initialTransformCollapsible = ctk.ctkCollapsibleButton()
+        initialTransformCollapsible.text = "Initial Transform (Optional)"
+        initialTransformCollapsible.collapsed = True
+        parametersLayout.addRow(initialTransformCollapsible)
+        initialTransformLayout = qt.QFormLayout(initialTransformCollapsible)
         
-        # Initial transforms (optional)
-        self.labelInitialTransformSelector = slicer.qMRMLNodeComboBox()
-        self.labelInitialTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
-        self.labelInitialTransformSelector.addEnabled = False
-        self.labelInitialTransformSelector.removeEnabled = False
-        self.labelInitialTransformSelector.noneEnabled = True
-        self.labelInitialTransformSelector.setMRMLScene(slicer.mrmlScene)
-        self.labelInitialTransformSelector.setToolTip("Optional: Initial transform to initialize the registration")
-        parametersLayout.addRow("Initial Transform (optional):", self.labelInitialTransformSelector)
+        # Radio buttons for initial transform mode
+        self.labelInitialTransformModeGroup = qt.QButtonGroup()
+        
+        self.labelUseCentroidRadio = qt.QRadioButton("Compute from label centroids")
+        self.labelUseCentroidRadio.setToolTip("Calculate linear transform based on centers of mass of label images")
+        self.labelUseCentroidRadio.setChecked(True)
+        self.labelInitialTransformModeGroup.addButton(self.labelUseCentroidRadio, 1)
+        initialTransformLayout.addRow(self.labelUseCentroidRadio)
+        
+        # Centroid transform type selector
+        centroidTypeLayout = qt.QHBoxLayout()
+        centroidTypeLayout.addSpacing(20)  # Indent
+        centroidTypeLabel = qt.QLabel("Transform type:")
+        self.labelCentroidTransformTypeComboBox = qt.QComboBox()
+        self.labelCentroidTransformTypeComboBox.addItems(["affine", "rigid", "similarity"])
+        self.labelCentroidTransformTypeComboBox.setCurrentText("affine")
+        self.labelCentroidTransformTypeComboBox.setToolTip("Type of linear transform to compute from centroids")
+        centroidTypeLayout.addWidget(centroidTypeLabel)
+        centroidTypeLayout.addWidget(self.labelCentroidTransformTypeComboBox)
+        centroidTypeLayout.addStretch()
+        initialTransformLayout.addRow(centroidTypeLayout)
+        
+        self.labelUseExistingTransformRadio = qt.QRadioButton("Use existing transform")
+        self.labelUseExistingTransformRadio.setToolTip("Use an existing transform to initialize the registration")
+        self.labelInitialTransformModeGroup.addButton(self.labelUseExistingTransformRadio, 2)
+        initialTransformLayout.addRow(self.labelUseExistingTransformRadio)
+        
+        # Existing transform selector
+        existingTransformLayout = qt.QHBoxLayout()
+        existingTransformLayout.addSpacing(20)  # Indent
+        self.labelExistingTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelExistingTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelExistingTransformSelector.addEnabled = False
+        self.labelExistingTransformSelector.removeEnabled = False
+        self.labelExistingTransformSelector.noneEnabled = True
+        self.labelExistingTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelExistingTransformSelector.setToolTip("Select existing transform file")
+        self.labelExistingTransformSelector.enabled = False
+        existingTransformLayout.addWidget(self.labelExistingTransformSelector)
+        initialTransformLayout.addRow(existingTransformLayout)
         
         # Run button
         self.runLabelRegistrationButton = qt.QPushButton("Run Label Registration")
@@ -724,7 +778,23 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelOutputInverseTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
         self.labelOutputWarpedSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
         self.labelOutputWarpedIntensitySelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelUseCentroidRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
+        self.labelUseExistingTransformRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
+        self.labelExistingTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
         self.runLabelRegistrationButton.clicked.connect(self.onRunLabelRegistration)
+    
+    def onLabelInitialTransformModeChanged(self):
+        """Handle radio button changes for label initial transform selection"""
+        useCentroid = self.labelUseCentroidRadio.checked
+        useExisting = self.labelUseExistingTransformRadio.checked
+        
+        # Enable/disable centroid-related widgets
+        self.labelCentroidTransformTypeComboBox.enabled = useCentroid
+        
+        # Enable/disable existing transform selector
+        self.labelExistingTransformSelector.enabled = useExisting
+        
+        self.checkCanRunLabelRegistration()
     
     def checkCanRunLabelRegistration(self):
         """Check if label registration can be run"""
@@ -754,10 +824,14 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 inverseTransform = self.labelOutputInverseTransformSelector.currentNode()
                 warpedLabel = self.labelOutputWarpedSelector.currentNode()
                 warpedIntensity = self.labelOutputWarpedIntensitySelector.currentNode()
-                transformType = self.labelTransformTypeComboBox.currentText
                 metric = self.labelMetricComboBox.currentText
                 deformableTransform = self.labelDeformableTransformComboBox.currentText
-                initialTransform = self.labelInitialTransformSelector.currentNode()
+                
+                # Determine initial transform mode and parameters
+                useCentroid = self.labelUseCentroidRadio.checked
+                useExisting = self.labelUseExistingTransformRadio.checked
+                centroidTransformType = self.labelCentroidTransformTypeComboBox.currentText if useCentroid else None
+                existingTransform = self.labelExistingTransformSelector.currentNode() if useExisting else None
                 
                 self.logic.labelImageRegistration(
                     fixedLabel,
@@ -770,10 +844,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     inverseTransform,
                     warpedLabel,
                     warpedIntensity,
-                    transformType,
                     metric,
                     deformableTransform,
-                    initialTransform
+                    useCentroid,
+                    centroidTransformType,
+                    existingTransform
                 )
             
             self.runLabelRegistrationButton.text = "Run Label Registration"
@@ -2532,10 +2607,10 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
     def labelImageRegistration(self, fixedLabelNode, movingLabelNode, fixedIntensityNode,
                                movingIntensityNode, fixedMaskNode, movingMaskNode,
                                forwardTransformNode, inverseTransformNode, warpedLabelNode, 
-                               warpedIntensityNode, transformType, metric, deformableTransform,
-                               initialTransformNode):
+                               warpedIntensityNode, metric, deformableTransform,
+                               useCentroid, centroidTransformType, existingTransformNode):
         """
-        Register label images using ANTsPy with optional intensity images.
+        Register label images using ANTsPy label_image_registration.
         
         :param fixedLabelNode: Fixed label map volume node or segmentation node
         :param movingLabelNode: Moving label map volume node or segmentation node
@@ -2547,10 +2622,11 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         :param inverseTransformNode: Output inverse transform node
         :param warpedLabelNode: Output warped moving label node
         :param warpedIntensityNode: Optional output warped moving intensity node
-        :param transformType: Type of transform (e.g., 'SyN', 'Affine')
         :param metric: Metric to use (e.g., 'MeanSquares', 'Mattes', 'GC')
-        :param deformableTransform: Type of deformable transform
-        :param initialTransformNode: Optional initial transform node
+        :param deformableTransform: Type of deformable transform (e.g., 'SyN', 'BSplineSyN')
+        :param useCentroid: Boolean, if True compute initial transform from label centroids
+        :param centroidTransformType: Type of centroid transform ('rigid', 'similarity', 'affine')
+        :param existingTransformNode: Optional existing transform node to use as initial transform
         """
         import ants
         
@@ -2578,45 +2654,41 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
                 movingMaskVolume = self._getLabelmapFromNode(movingMaskNode, tempNodes)
                 moving_mask = antsImageFromNode(movingMaskVolume)
             
-            # Handle initial transform if provided
+            # Handle initial transform based on mode
             initial_transform = None
-            if initialTransformNode:
-                initial_transform = self._getTransformListFromNode(initialTransformNode)
+            if useCentroid and centroidTransformType:
+                # Mode 1: Compute from label centroids (pass string)
+                logging.info(f"Computing {centroidTransformType} transform from label centroids")
+                initial_transform = centroidTransformType
+            elif existingTransformNode:
+                # Mode 2: Use existing transform file (pass list of file paths)
+                logging.info("Using existing transform as initial transform")
+                initial_transform = self._getTransformListFromNode(existingTransformNode)
             
-            # If intensity images are provided, use them for registration guidance
+            # Prepare intensity images if provided
+            fixedIntensityList = None
+            movingIntensityList = None
             if fixedIntensityNode and movingIntensityNode:
                 logging.info("Using intensity images for registration guidance")
                 fixedIntensity = antsImageFromNode(fixedIntensityNode)
                 movingIntensity = antsImageFromNode(movingIntensityNode)
-                
-                # Register intensity images
-                result = ants.registration(
-                    fixed=fixedIntensity,
-                    moving=movingIntensity,
-                    type_of_transform=transformType,
-                    aff_metric=metric,
-                    syn_metric=metric,
-                    type_of_deformable_transform=deformableTransform,
-                    initial_transform=initial_transform,
-                    mask=fixed_mask,
-                    moving_mask=moving_mask,
-                    write_composite_transform=True
-                )
-            else:
-                # Register label images directly
-                logging.info("Registering label images directly")
-                result = ants.registration(
-                    fixed=fixedLabel,
-                    moving=movingLabel,
-                    type_of_transform=transformType,
-                    aff_metric=metric,
-                    syn_metric=metric,
-                    type_of_deformable_transform=deformableTransform,
-                    initial_transform=initial_transform,
-                    mask=fixed_mask,
-                    moving_mask=moving_mask,
-                    write_composite_transform=True
-                )
+                fixedIntensityList = [fixedIntensity]
+                movingIntensityList = [movingIntensity]
+            
+            # Use ANTsPy's label_image_registration function
+            logging.info(f"Running label image registration with {deformableTransform} deformable transform")
+            result = ants.registration.label_image_registration(
+                fixed_label_images=[fixedLabel],
+                moving_label_images=[movingLabel],
+                fixed_intensity_images=fixedIntensityList,
+                moving_intensity_images=movingIntensityList,
+                fixed_mask=fixed_mask,
+                moving_mask=moving_mask,
+                initial_transform=initial_transform,
+                type_of_deformable_transform=deformableTransform,
+                label_image_weighting=1.0,
+                verbose=True
+            )
             
             # Save outputs
             if forwardTransformNode:
