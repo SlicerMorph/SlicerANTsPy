@@ -532,16 +532,6 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_40">
-            <property name="text">
-             <string>Landmarks Directory</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="ctkDirectoryButton" name="initialTransformTBDirectoryButton"/>
-          </item>
          </layout>
         </widget>
        </item>
@@ -599,6 +589,66 @@
             </property>
             <property name="text">
              <string>Clear input path list</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="selectLandmarksButton">
+         <property name="text">
+          <string>Select landmark files ...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="ctkCollapsibleButton" name="landmarkListCollapsibleButton">
+         <property name="text">
+          <string>View landmark file paths</string>
+         </property>
+         <property name="collapsed">
+          <bool>true</bool>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_landmarks">
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_landmarks">
+            <item>
+             <widget class="QPushButton" name="removeLandmarkButton">
+              <property name="text">
+               <string>Remove Selected Path</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="bumpLandmarkButton">
+              <property name="text">
+               <string>Move Path to Top</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QListWidget" name="landmarkFileListWidget">
+            <property name="dragEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="dragDropMode">
+             <enum>QAbstractItemView::InternalMove</enum>
+            </property>
+            <property name="defaultDropAction">
+             <enum>Qt::MoveAction</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="clearLandmarkButton">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>Clear landmark path list</string>
             </property>
            </widget>
           </item>

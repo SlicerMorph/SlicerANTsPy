@@ -478,12 +478,18 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.removeButton.clicked.connect(self.onRemoveImagePaths)
         self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
+        
+        self.ui.clearLandmarkButton.connect("clicked(bool)", self.onClearLandmarks)
+        self.ui.removeLandmarkButton.clicked.connect(self.onRemoveLandmarkPaths)
+        self.ui.bumpLandmarkButton.clicked.connect(self.onBumpLandmarkPath)
+        self.ui.selectLandmarksButton.connect("clicked(bool)", self.onSelectLandmarks)
+        
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
         self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.outputLandmarksSelector.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunTemplateBuilding))
-        self.ui.initialTransformTBDirectoryButton.directoryChanged.connect(self.checkCanRunTemplateBuilding)
+        self.ui.landmarkFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunTemplateBuilding))
         self.ui.initialTransformTBCheckBox.toggled.connect(self.checkCanRunTemplateBuilding)
 
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
@@ -1337,17 +1343,16 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onRemoveImagePaths(self):
         selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
-
-        for i in selectedItemRows:
+        # Remove in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
             self.ui.inputFileListWidget.takeItem(i)
 
     def onBumpImagePath(self):
         selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
-
-        for i in selectedItemRows:
+        # Process in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
             item = self.ui.inputFileListWidget.takeItem(i)
             self.ui.inputFileListWidget.insertItem(0, item)
-
         self.ui.inputFileListWidget.setCurrentRow(0)
 
     def onGoToSettings(self):
@@ -1364,12 +1369,44 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )  # Set file filter
         if fileDialog.exec_():
             inputFilePaths = list(fileDialog.selectedFiles())
-        for path in inputFilePaths:
-            self.ui.inputFileListWidget.addItem(path)
-        self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
-        self.checkCanRunTemplateBuilding()
+            for path in inputFilePaths:
+                self.ui.inputFileListWidget.addItem(path)
+            self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
+            self.checkCanRunTemplateBuilding()
 
+    def onSelectLandmarks(self):
+        fileDialog = qt.QFileDialog()
+        fileDialog.setFileMode(
+            qt.QFileDialog.ExistingFiles
+        )  # Set to open multiple existing files
+        fileDialog.setNameFilter(
+            "Landmark files(*.mrk.json *.fcsv);;All files (*.*)"
+        )  # Set file filter
+        if fileDialog.exec_():
+            landmarkPaths = list(fileDialog.selectedFiles())
+            for path in landmarkPaths:
+                self.ui.landmarkFileListWidget.addItem(path)
+            self.ui.clearLandmarkButton.enabled = self.ui.landmarkFileListWidget.count != 0
+            self.checkCanRunTemplateBuilding()
     
+    def onClearLandmarks(self):
+        self.ui.landmarkFileListWidget.clear()
+        self.ui.clearLandmarkButton.enabled = False
+    
+    def onRemoveLandmarkPaths(self):
+        selectedItemRows = [self.ui.landmarkFileListWidget.row(x) for x in self.ui.landmarkFileListWidget.selectedItems()]
+        # Remove in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
+            self.ui.landmarkFileListWidget.takeItem(i)
+    
+    def onBumpLandmarkPath(self):
+        selectedItemRows = [self.ui.landmarkFileListWidget.row(x) for x in self.ui.landmarkFileListWidget.selectedItems()]
+        # Process in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
+            item = self.ui.landmarkFileListWidget.takeItem(i)
+            self.ui.landmarkFileListWidget.insertItem(0, item)
+        self.ui.landmarkFileListWidget.setCurrentRow(0)
+
     def onInitialTransformModeChanged(self):
         """Handle radio button changes for initial transform selection"""
         useLandmarks = self.ui.useLandmarkTransformRadio.checked
@@ -1500,13 +1537,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         landmarksPaths = None
         
         if self.ui.initialTransformTBCheckBox.checked:
-            # Check if landmarks directory exists
-            landmarksDir = self.ui.initialTransformTBDirectoryButton.directory
-            if not landmarksDir or not os.path.exists(landmarksDir):
-                slicer.util.errorDisplay(f"Landmarks directory does not exist or is not specified:\n{landmarksDir}")
-                return
-            
-            landmarksPaths = self.getInputsFromDirectory(landmarksDir, ['.mrk.json', '.fcsv'])
+            # Get landmarks from list widget
+            landmarksPaths = [self.ui.landmarkFileListWidget.item(x).text() for x in range(self.ui.landmarkFileListWidget.count)]
             
             if not self.ui.outputLandmarksSelector.currentNode():
                 slicer.util.errorDisplay("Please select an output landmarks node when using landmark-based initial transform.")
@@ -1520,7 +1552,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if len(landmarksPaths) != len(pathList):
                 slicer.util.errorDisplay(
                     f"Number of input images ({len(pathList)}) does not match number of landmark files ({len(landmarksPaths)}).\n\n"
-                    f"Each input image must have a corresponding landmark file with matching basename in:\n{landmarksDir}"
+                    f"Please select {len(pathList)} landmark file(s) to match your input images."
                 )
                 return
             
@@ -1530,7 +1562,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             except IOError as e:
                 slicer.util.errorDisplay(
                     f"Landmark file mismatch:\n\n{str(e)}\n\n"
-                    f"Landmarks directory: {landmarksDir}"
+                    f"Make sure each image has a corresponding landmark file with matching basename."
                 )
                 return
         
@@ -1599,12 +1631,6 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def checkGWLandmarks(self):
         imagePaths = self.getInputsFromDirectory(self.ui.inputDirectoryButton.directory, ['.nrrd', '.mha', '.nii.gz'])
         landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
-
-        self.comparePathBasenames(imagePaths, landmarkPaths)
-
-    def checkTBLandmarks(self):
-        imagePaths = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
 
         self.comparePathBasenames(imagePaths, landmarkPaths)
     
