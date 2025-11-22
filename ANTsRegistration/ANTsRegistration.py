@@ -1415,18 +1415,9 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     
     def checkCanRunTemplateBuilding(self):
-
+        # Enable button if basic requirements are met - detailed validation happens at runtime
         filePaths = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
-
-        if self.ui.initialTransformTBCheckBox.checked:
-            check = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 and (len(landmarkPaths) == len(filePaths)) and self.ui.outputLandmarksSelector.currentNode()
-            self.ui.runTemplateBuilding.enabled = check
-            if self.ui.initialTemplateComboBox.currentNode():
-                 self.ui.runTemplateBuilding.enabled =  self.ui.runTemplateBuilding.enabled and self.ui.templateLandmarksTBSelector.currentNode()
-
-        else:
-            self.ui.runTemplateBuilding.enabled = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 
+        self.ui.runTemplateBuilding.enabled = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 
     
     
     def checkCanRunGroupRegistration(self):
@@ -1504,16 +1495,52 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     
     def onRunTemplateBuilding(self):
+        # Validate inputs before starting
+        pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+        landmarksPaths = None
+        
+        if self.ui.initialTransformTBCheckBox.checked:
+            # Check if landmarks directory exists
+            landmarksDir = self.ui.initialTransformTBDirectoryButton.directory
+            if not landmarksDir or not os.path.exists(landmarksDir):
+                slicer.util.errorDisplay(f"Landmarks directory does not exist or is not specified:\n{landmarksDir}")
+                return
+            
+            landmarksPaths = self.getInputsFromDirectory(landmarksDir, ['.mrk.json', '.fcsv'])
+            
+            if not self.ui.outputLandmarksSelector.currentNode():
+                slicer.util.errorDisplay("Please select an output landmarks node when using landmark-based initial transform.")
+                return
+            
+            if self.ui.initialTemplateComboBox.currentNode() and not self.ui.templateLandmarksTBSelector.currentNode():
+                slicer.util.errorDisplay("Please select template landmarks when using an initial template with landmark-based transform.")
+                return
+            
+            # Check count mismatch first
+            if len(landmarksPaths) != len(pathList):
+                slicer.util.errorDisplay(
+                    f"Number of input images ({len(pathList)}) does not match number of landmark files ({len(landmarksPaths)}).\n\n"
+                    f"Each input image must have a corresponding landmark file with matching basename in:\n{landmarksDir}"
+                )
+                return
+            
+            # Check for basename mismatches
+            try:
+                self.comparePathBasenames(pathList, landmarksPaths)
+            except IOError as e:
+                slicer.util.errorDisplay(
+                    f"Landmark file mismatch:\n\n{str(e)}\n\n"
+                    f"Landmarks directory: {landmarksDir}"
+                )
+                return
+        
         self.uiWidget.enabled = False
         self.ui.runTemplateBuilding.text = "Template building in progess"
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Template building failed."):
-                pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-                landmarksPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
-                if self.ui.initialTransformTBCheckBox.checked:
-                    self.checkTBLandmarks()
                 outputDirectory = os.path.join(self.ui.templateOutputDirectoryButton.directory, "TemplateBuilding_{0}".format(time.time()))
+                
                 self.logic.buildTemplateANTsPy(
                     self.ui.initialTemplateComboBox.currentNode(), 
                     pathList, 
