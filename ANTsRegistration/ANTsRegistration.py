@@ -27,7 +27,7 @@ from slicer import (
     vtkMRMLGridTransformNode,
 )
 
-from antsRegistrationLib.Widgets.tables import StagesTable, MetricsTable, LevelsTable
+from ANTsPyRegistrationLib.Widgets.tables import StagesTable, MetricsTable, LevelsTable
 
 
 ANTsPyTransformTypes  = [ 
@@ -1858,22 +1858,22 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             "Developer/DeveloperMode", False, converter=slicer.util.toBool
         ):
             import importlib
-            import antsRegistrationLib
+            import ANTsPyRegistrationLib
 
-            antsRegistrationLibPath = os.path.join(
-                os.path.dirname(__file__), "antsRegistrationLib"
+            ANTsPyRegistrationLibPath = os.path.join(
+                os.path.dirname(__file__), "ANTsPyRegistrationLib"
             )
-            G = glob.glob(os.path.join(antsRegistrationLibPath, "**", "*.py"))
+            G = glob.glob(os.path.join(ANTsPyRegistrationLibPath, "**", "*.py"))
             for g in G:
                 relativePath = os.path.relpath(
-                    g, antsRegistrationLibPath
+                    g, ANTsPyRegistrationLibPath
                 )  # relative path
                 relativePath = os.path.splitext(relativePath)[0]  # get rid of .py
                 moduleParts = relativePath.split(os.path.sep)  # separate
                 importlib.import_module(
-                    ".".join(["antsRegistrationLib"] + moduleParts)
+                    ".".join(["ANTsPyRegistrationLib"] + moduleParts)
                 )  # import module
-                module = antsRegistrationLib
+                module = ANTsPyRegistrationLib
                 for (
                     modulePart
                 ) in moduleParts:  # iterate over parts in order to load subpkgs

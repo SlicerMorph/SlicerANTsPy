@@ -4,11 +4,11 @@ set(MODULE_NAME ANTsRegistration)
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
-  antsRegistrationLib/__init__.py
-  antsRegistrationLib/util.py
-  antsRegistrationLib/Widgets/__init__.py
-  antsRegistrationLib/Widgets/delegates.py
-  antsRegistrationLib/Widgets/tables.py
+  ANTsPyRegistrationLib/__init__.py
+  ANTsPyRegistrationLib/util.py
+  ANTsPyRegistrationLib/Widgets/__init__.py
+  ANTsPyRegistrationLib/Widgets/delegates.py
+  ANTsPyRegistrationLib/Widgets/tables.py
   )
 
 set(MODULE_PYTHON_RESOURCES
