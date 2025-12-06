@@ -164,9 +164,19 @@ def nodeFromANTSImage(antsImage, imageNode=None):
 
 
 def nodeFromANTSTransform(antsTransformPath, transformNode):
-
-
-
+    """Load ANTs transform(s) into a Slicer transform node.
+    
+    Args:
+        antsTransformPath: Either a single file path (string) or a list of file paths.
+                          If a list is provided, only the first transform is loaded.
+        transformNode: The Slicer transform node to load the transform into.
+    """
+    # Handle both single path and list of paths
+    if isinstance(antsTransformPath, list):
+        if len(antsTransformPath) == 0:
+            return
+        antsTransformPath = antsTransformPath[0]
+    
     storageNode = slicer.vtkMRMLTransformStorageNode()
     storageNode.SetFileName(antsTransformPath)
     storageNode.ReadData(transformNode, True)
@@ -180,9 +190,13 @@ def writeTransformSet(outputDirectory, name, direction, transforms):
         path, ext = os.path.basename(transform).split(os.extsep, 1)
         if ext == 'mat':
             filename = name +'-'+str(i)+ direction  + 'Affine.mat'
-
-        if ext == 'nii.gz':
+        elif ext == 'nii.gz':
             filename = name +'-'+str(i) +direction + 'Warp.nii.gz'
+        elif ext == 'h5':
+            filename = name +'-'+str(i) + direction + 'Composite.h5'
+        else:
+            # Fallback for unknown extensions - preserve original extension
+            filename = name +'-'+str(i) + direction + '.' + ext
         shutil.copy(transform, os.path.join(outputDirectory, filename))
 
 
@@ -200,15 +214,41 @@ def antsLandmarksFromNode(node):
 
 def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='rigid', domainImage=None):
     import ants
+    
     fixed_landmarks_ants = antsLandmarksFromNode(fixed_landmarks)
     moving_landmarks_ants = antsLandmarksFromNode(moving_landmarks)
-    xfrm = ants.fit_transform_to_paired_points(moving_landmarks_ants, fixed_landmarks_ants)
+    
     tempFilePath = os.path.join(
         ANTsPyTemporaryPath(),
-        "tempTransform_{0}.h5".format(time.time()),
+        "tempTransform_{0}".format(time.time()),
     )
-    ants.write_transform(xfrm, tempFilePath)
-
+    
+    # Handle different transform types
+    transform_type_lower = transform_type.lower()
+    if transform_type_lower in ['bspline', 'diffeo']:
+        if domainImage is None:
+            raise ValueError(f"{transform_type} transform requires a domain_image parameter")
+        xfrm = ants.fit_transform_to_paired_points(
+            moving_landmarks_ants, 
+            fixed_landmarks_ants,
+            transform_type=transform_type_lower,
+            domain_image=domainImage,
+            number_of_fitting_levels=5
+        )
+        # For bspline/diffeo: convert to displacement field and save as .nii.gz
+        disp_field = ants.transform_to_displacement_field(xfrm, domainImage)
+        tempFilePath = tempFilePath + ".nii.gz"
+        ants.image_write(disp_field, tempFilePath)
+    else:
+        # For rigid, similarity, affine: save as .h5
+        tempFilePath = tempFilePath + ".h5"
+        xfrm = ants.fit_transform_to_paired_points(
+            moving_landmarks_ants, 
+            fixed_landmarks_ants,
+            transform_type=transform_type_lower
+        )
+        ants.write_transform(xfrm, tempFilePath)
+    
     return [tempFilePath]
 
 
@@ -438,7 +478,12 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputForwardTransformComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
         self.ui.outputInverseTransformComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
         self.ui.outputVolumeComboBox.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
-        self.ui.initialTransformPWCheckBox.toggled.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.transformTypeComboBox.currentTextChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.groupBox_3.toggled.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.useExistingTransformRadio.toggled.connect(self.onInitialTransformModeChanged)
+        self.ui.useLandmarkTransformRadio.toggled.connect(self.onInitialTransformModeChanged)
+        self.ui.existingTransformSelector.currentNodeChanged.connect(self.checkCanRunPairwiseRegistration)
+        self.ui.landmarkTransformTypeComboBox.currentTextChanged.connect(self.checkCanRunPairwiseRegistration)
 
 
 
@@ -447,12 +492,18 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.removeButton.clicked.connect(self.onRemoveImagePaths)
         self.ui.bumpButton.clicked.connect(self.onBumpImagePath)
         self.ui.selectImages.connect("clicked(bool)", self.onSelectImages)
+        
+        self.ui.clearLandmarkButton.connect("clicked(bool)", self.onClearLandmarks)
+        self.ui.removeLandmarkButton.clicked.connect(self.onRemoveLandmarkPaths)
+        self.ui.bumpLandmarkButton.clicked.connect(self.onBumpLandmarkPath)
+        self.ui.selectLandmarksButton.connect("clicked(bool)", self.onSelectLandmarks)
+        
         self.ui.runTemplateBuilding.connect("clicked(bool)", self.onRunTemplateBuilding)
         self.ui.outTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.outputLandmarksSelector.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunTemplateBuilding)
         self.ui.inputFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunTemplateBuilding))
-        self.ui.initialTransformTBDirectoryButton.directoryChanged.connect(self.checkCanRunTemplateBuilding)
+        self.ui.landmarkFileListWidget.currentItemChanged.connect(lambda: qt.QTimer.singleShot(0, self.checkCanRunTemplateBuilding))
         self.ui.initialTransformTBCheckBox.toggled.connect(self.checkCanRunTemplateBuilding)
 
         self.ui.inTemplateComboBox.currentNodeChanged.connect(self.checkCanRunGroupRegistration)
@@ -486,10 +537,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )
 
         self.ui.CommonSettings.visible = False
+        self.ui.transformTypeComboBox.addItem("None")
         for transformTypes in ANTsPyTransformTypes:
             self.ui.transformTypeComboBox.addItem(transformTypes)
             self.ui.templateTransformTypeComboBox.addItem(transformTypes)
             self.ui.groupTransformTypeComboBox.addItem(transformTypes)
+        
+        # Populate landmark transform type options
+        self.ui.landmarkTransformTypeComboBox.clear()
+        self.ui.landmarkTransformTypeComboBox.addItems(["Rigid", "Similarity", "Affine", "Bspline", "Diffeo"])
 
 
         self.ui.jacobianInputDirectory.directorySelected.connect(self.populateJacobianInputs)
@@ -503,9 +559,332 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if not os.path.exists(ANTsPyTemporaryPath()):
             os.makedirs(ANTsPyTemporaryPath())
-            return
 
         self.ui.templateOutputDirectoryButton.directory = slicer.app.defaultScenePath
+        
+        # Average tab connections
+        self.ui.averageInputDirectoryButton.directoryChanged.connect(self.checkCanRunAverage)
+        self.ui.averageOutputVolumeComboBox.currentNodeChanged.connect(self.checkCanRunAverage)
+        self.ui.runAverageButton.clicked.connect(self.onRunAverage)
+        
+        # Create Label Image Registration tab
+        self.setupLabelImageRegistrationTab()
+
+
+    def setupLabelImageRegistrationTab(self):
+        """Create and setup the Label Image Registration tab"""
+        # Create a new tab
+        self.labelImageRegTab = qt.QWidget()
+        self.ui.tabsWidget.addTab(self.labelImageRegTab, "Label Image Reg")
+        
+        # Create layout
+        labelImageRegLayout = qt.QFormLayout(self.labelImageRegTab)
+        
+        # Input/Output section
+        inputOutputCollapsible = ctk.ctkCollapsibleButton()
+        inputOutputCollapsible.text = "Input/Output"
+        labelImageRegLayout.addRow(inputOutputCollapsible)
+        inputOutputLayout = qt.QFormLayout(inputOutputCollapsible)
+        
+        # Fixed label image
+        self.labelFixedImageSelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedImageSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelFixedImageSelector.addEnabled = False
+        self.labelFixedImageSelector.removeEnabled = False
+        self.labelFixedImageSelector.noneEnabled = True
+        self.labelFixedImageSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedImageSelector.setToolTip("Select the fixed label image or segmentation")
+        inputOutputLayout.addRow("Fixed Label Image:", self.labelFixedImageSelector)
+        
+        # Fixed intensity image (optional) - indented
+        fixedIntensityLayout = qt.QHBoxLayout()
+        fixedIntensityLayout.addSpacing(20)
+        self.labelFixedIntensitySelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.labelFixedIntensitySelector.addEnabled = False
+        self.labelFixedIntensitySelector.removeEnabled = False
+        self.labelFixedIntensitySelector.noneEnabled = True
+        self.labelFixedIntensitySelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedIntensitySelector.setToolTip("Optional: Select the fixed intensity image for guidance")
+        fixedIntensityLayout.addWidget(self.labelFixedIntensitySelector)
+        inputOutputLayout.addRow("  Fixed Intensity (optional):", fixedIntensityLayout)
+        
+        # Fixed mask (optional) - indented
+        fixedMaskLayout = qt.QHBoxLayout()
+        fixedMaskLayout.addSpacing(20)
+        self.labelFixedMaskSelector = slicer.qMRMLNodeComboBox()
+        self.labelFixedMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelFixedMaskSelector.addEnabled = False
+        self.labelFixedMaskSelector.removeEnabled = False
+        self.labelFixedMaskSelector.noneEnabled = True
+        self.labelFixedMaskSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelFixedMaskSelector.setToolTip("Optional: Mask for the fixed image to restrict registration region")
+        fixedMaskLayout.addWidget(self.labelFixedMaskSelector)
+        inputOutputLayout.addRow("  Fixed Mask (optional):", fixedMaskLayout)
+        
+        # Moving label image
+        self.labelMovingImageSelector = slicer.qMRMLNodeComboBox()
+        self.labelMovingImageSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelMovingImageSelector.addEnabled = False
+        self.labelMovingImageSelector.removeEnabled = False
+        self.labelMovingImageSelector.noneEnabled = True
+        self.labelMovingImageSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelMovingImageSelector.setToolTip("Select the moving label image or segmentation")
+        inputOutputLayout.addRow("Moving Label Image:", self.labelMovingImageSelector)
+        
+        # Moving intensity image (optional) - indented
+        movingIntensityLayout = qt.QHBoxLayout()
+        movingIntensityLayout.addSpacing(20)
+        self.labelMovingIntensitySelector = slicer.qMRMLNodeComboBox()
+        self.labelMovingIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.labelMovingIntensitySelector.addEnabled = False
+        self.labelMovingIntensitySelector.removeEnabled = False
+        self.labelMovingIntensitySelector.noneEnabled = True
+        self.labelMovingIntensitySelector.setMRMLScene(slicer.mrmlScene)
+        self.labelMovingIntensitySelector.setToolTip("Optional: Select the moving intensity image for guidance")
+        movingIntensityLayout.addWidget(self.labelMovingIntensitySelector)
+        inputOutputLayout.addRow("  Moving Intensity (optional):", movingIntensityLayout)
+        
+        # Moving mask (optional) - indented
+        movingMaskLayout = qt.QHBoxLayout()
+        movingMaskLayout.addSpacing(20)
+        self.labelMovingMaskSelector = slicer.qMRMLNodeComboBox()
+        self.labelMovingMaskSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode", "vtkMRMLSegmentationNode"]
+        self.labelMovingMaskSelector.addEnabled = False
+        self.labelMovingMaskSelector.removeEnabled = False
+        self.labelMovingMaskSelector.noneEnabled = True
+        self.labelMovingMaskSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelMovingMaskSelector.setToolTip("Optional: Mask for the moving image to restrict registration region")
+        movingMaskLayout.addWidget(self.labelMovingMaskSelector)
+        inputOutputLayout.addRow("  Moving Mask (optional):", movingMaskLayout)
+        
+        # Output forward transform
+        self.labelOutputForwardTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputForwardTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelOutputForwardTransformSelector.addEnabled = True
+        self.labelOutputForwardTransformSelector.removeEnabled = True
+        self.labelOutputForwardTransformSelector.renameEnabled = True
+        self.labelOutputForwardTransformSelector.noneEnabled = True
+        self.labelOutputForwardTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputForwardTransformSelector.setToolTip("Select or create the output forward transform")
+        self.labelOutputForwardTransformSelector.baseName = "LabelReg_Forward_Transform"
+        inputOutputLayout.addRow("Forward Transform:", self.labelOutputForwardTransformSelector)
+        
+        # Output inverse transform
+        self.labelOutputInverseTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputInverseTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelOutputInverseTransformSelector.addEnabled = True
+        self.labelOutputInverseTransformSelector.removeEnabled = True
+        self.labelOutputInverseTransformSelector.renameEnabled = True
+        self.labelOutputInverseTransformSelector.noneEnabled = True
+        self.labelOutputInverseTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputInverseTransformSelector.setToolTip("Select or create the output inverse transform")
+        self.labelOutputInverseTransformSelector.baseName = "LabelReg_Inverse_Transform"
+        inputOutputLayout.addRow("Inverse Transform:", self.labelOutputInverseTransformSelector)
+        
+        # Output warped moving label
+        self.labelOutputWarpedSelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputWarpedSelector.nodeTypes = ["vtkMRMLLabelMapVolumeNode"]
+        self.labelOutputWarpedSelector.addEnabled = True
+        self.labelOutputWarpedSelector.removeEnabled = True
+        self.labelOutputWarpedSelector.renameEnabled = True
+        self.labelOutputWarpedSelector.noneEnabled = True
+        self.labelOutputWarpedSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputWarpedSelector.setToolTip("Select or create the output warped moving label image")
+        self.labelOutputWarpedSelector.baseName = "LabelReg_Warped"
+        inputOutputLayout.addRow("Warped Moving Label:", self.labelOutputWarpedSelector)
+        
+        # Output warped moving intensity (optional)
+        self.labelOutputWarpedIntensitySelector = slicer.qMRMLNodeComboBox()
+        self.labelOutputWarpedIntensitySelector.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.labelOutputWarpedIntensitySelector.addEnabled = True
+        self.labelOutputWarpedIntensitySelector.removeEnabled = True
+        self.labelOutputWarpedIntensitySelector.renameEnabled = True
+        self.labelOutputWarpedIntensitySelector.noneEnabled = True
+        self.labelOutputWarpedIntensitySelector.setMRMLScene(slicer.mrmlScene)
+        self.labelOutputWarpedIntensitySelector.setToolTip("Optional: Select or create the output warped moving intensity image")
+        self.labelOutputWarpedIntensitySelector.baseName = "LabelReg_Warped_Intensity"
+        inputOutputLayout.addRow("Warped Moving Intensity (optional):", self.labelOutputWarpedIntensitySelector)
+        
+        # Parameters section
+        parametersCollapsible = ctk.ctkCollapsibleButton()
+        parametersCollapsible.text = "Registration Parameters"
+        labelImageRegLayout.addRow(parametersCollapsible)
+        parametersLayout = qt.QFormLayout(parametersCollapsible)
+        
+        # Type of deformable transform (main parameter)
+        self.labelDeformableTransformComboBox = qt.QComboBox()
+        self.labelDeformableTransformComboBox.addItems([
+            "antsRegistrationSyNQuick[s]",
+            "antsRegistrationSyNQuick[b]",
+            "antsRegistrationSyNQuick[bo]",
+            "antsRegistrationSyNQuick[so]",
+            "antsRegistrationSyN[s]",
+            "antsRegistrationSyN[b]",
+            "antsRegistrationSyN[bo]",
+            "antsRegistrationSyN[so]",
+            "SyN",
+            "BSplineSyN"
+        ])
+        self.labelDeformableTransformComboBox.setCurrentText("antsRegistrationSyNQuick[so]")
+        self.labelDeformableTransformComboBox.setToolTip("Type of deformable transform (deformable-only transforms from antsRegistrationSyN*[so] or antsRegistrationSyN*[bo] family recommended)")
+        parametersLayout.addRow("Deformable Transform:", self.labelDeformableTransformComboBox)
+        
+        # Label image metric
+        self.labelMetricComboBox = qt.QComboBox()
+        self.labelMetricComboBox.addItems(["MeanSquares", "Mattes", "GC"])
+        self.labelMetricComboBox.setCurrentText("MeanSquares")
+        self.labelMetricComboBox.setToolTip("Metric for label overlap")
+        parametersLayout.addRow("Metric:", self.labelMetricComboBox)
+        
+        # Initial transform section (two modes)
+        initialTransformCollapsible = ctk.ctkCollapsibleButton()
+        initialTransformCollapsible.text = "Initial Transform (Optional)"
+        initialTransformCollapsible.collapsed = True
+        parametersLayout.addRow(initialTransformCollapsible)
+        initialTransformLayout = qt.QFormLayout(initialTransformCollapsible)
+        
+        # Radio buttons for initial transform mode
+        self.labelInitialTransformModeGroup = qt.QButtonGroup()
+        
+        self.labelNoInitialTransformRadio = qt.QRadioButton("None (use default)")
+        self.labelNoInitialTransformRadio.setToolTip("No initial transform - will use ANTsPy default behavior")
+        self.labelNoInitialTransformRadio.setChecked(True)
+        self.labelInitialTransformModeGroup.addButton(self.labelNoInitialTransformRadio, 0)
+        initialTransformLayout.addRow(self.labelNoInitialTransformRadio)
+        
+        self.labelUseCentroidRadio = qt.QRadioButton("Compute from label centroids")
+        self.labelUseCentroidRadio.setToolTip("Calculate linear transform based on centers of mass of label images")
+        self.labelInitialTransformModeGroup.addButton(self.labelUseCentroidRadio, 1)
+        initialTransformLayout.addRow(self.labelUseCentroidRadio)
+        
+        # Centroid transform type selector
+        centroidTypeLayout = qt.QHBoxLayout()
+        centroidTypeLayout.addSpacing(20)  # Indent
+        centroidTypeLabel = qt.QLabel("Transform type:")
+        self.labelCentroidTransformTypeComboBox = qt.QComboBox()
+        self.labelCentroidTransformTypeComboBox.addItems(["affine", "rigid", "similarity"])
+        self.labelCentroidTransformTypeComboBox.setCurrentText("affine")
+        self.labelCentroidTransformTypeComboBox.setToolTip("Type of linear transform to compute from centroids")
+        centroidTypeLayout.addWidget(centroidTypeLabel)
+        centroidTypeLayout.addWidget(self.labelCentroidTransformTypeComboBox)
+        centroidTypeLayout.addStretch()
+        initialTransformLayout.addRow(centroidTypeLayout)
+        
+        self.labelUseExistingTransformRadio = qt.QRadioButton("Use existing transform")
+        self.labelUseExistingTransformRadio.setToolTip("Use an existing transform to initialize the registration")
+        self.labelInitialTransformModeGroup.addButton(self.labelUseExistingTransformRadio, 2)
+        initialTransformLayout.addRow(self.labelUseExistingTransformRadio)
+        
+        # Existing transform selector
+        existingTransformLayout = qt.QHBoxLayout()
+        existingTransformLayout.addSpacing(20)  # Indent
+        self.labelExistingTransformSelector = slicer.qMRMLNodeComboBox()
+        self.labelExistingTransformSelector.nodeTypes = ["vtkMRMLTransformNode"]
+        self.labelExistingTransformSelector.addEnabled = False
+        self.labelExistingTransformSelector.removeEnabled = False
+        self.labelExistingTransformSelector.noneEnabled = True
+        self.labelExistingTransformSelector.setMRMLScene(slicer.mrmlScene)
+        self.labelExistingTransformSelector.setToolTip("Select existing transform file")
+        self.labelExistingTransformSelector.enabled = False
+        existingTransformLayout.addWidget(self.labelExistingTransformSelector)
+        initialTransformLayout.addRow(existingTransformLayout)
+        
+        # Run button
+        self.runLabelRegistrationButton = qt.QPushButton("Run Label Registration")
+        self.runLabelRegistrationButton.toolTip = "Run label image registration"
+        self.runLabelRegistrationButton.enabled = False
+        labelImageRegLayout.addRow(self.runLabelRegistrationButton)
+        
+        # Connect signals
+        self.labelFixedImageSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelMovingImageSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputForwardTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputInverseTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputWarpedSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelOutputWarpedIntensitySelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.labelNoInitialTransformRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
+        self.labelUseCentroidRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
+        self.labelUseExistingTransformRadio.toggled.connect(self.onLabelInitialTransformModeChanged)
+        self.labelExistingTransformSelector.currentNodeChanged.connect(self.checkCanRunLabelRegistration)
+        self.runLabelRegistrationButton.clicked.connect(self.onRunLabelRegistration)
+    
+    def onLabelInitialTransformModeChanged(self):
+        """Handle radio button changes for label initial transform selection"""
+        useNone = self.labelNoInitialTransformRadio.checked
+        useCentroid = self.labelUseCentroidRadio.checked
+        useExisting = self.labelUseExistingTransformRadio.checked
+        
+        # Enable/disable centroid-related widgets
+        self.labelCentroidTransformTypeComboBox.enabled = useCentroid
+        
+        # Enable/disable existing transform selector
+        self.labelExistingTransformSelector.enabled = useExisting
+        
+        self.checkCanRunLabelRegistration()
+    
+    def checkCanRunLabelRegistration(self):
+        """Check if label registration can be run"""
+        hasInputs = (self.labelFixedImageSelector.currentNode() and 
+                    self.labelMovingImageSelector.currentNode())
+        hasOutputs = (self.labelOutputForwardTransformSelector.currentNode() or
+                     self.labelOutputInverseTransformSelector.currentNode() or
+                     self.labelOutputWarpedSelector.currentNode() or
+                     self.labelOutputWarpedIntensitySelector.currentNode())
+        self.runLabelRegistrationButton.enabled = hasInputs and hasOutputs
+    
+    def onRunLabelRegistration(self):
+        """Execute label image registration"""
+        self.uiWidget.enabled = False
+        self.runLabelRegistrationButton.text = "Label registration in progress..."
+        slicer.app.processEvents()
+        
+        try:
+            with slicer.util.tryWithErrorDisplay("Label registration failed."):
+                fixedLabel = self.labelFixedImageSelector.currentNode()
+                movingLabel = self.labelMovingImageSelector.currentNode()
+                fixedIntensity = self.labelFixedIntensitySelector.currentNode()
+                movingIntensity = self.labelMovingIntensitySelector.currentNode()
+                fixedMask = self.labelFixedMaskSelector.currentNode()
+                movingMask = self.labelMovingMaskSelector.currentNode()
+                forwardTransform = self.labelOutputForwardTransformSelector.currentNode()
+                inverseTransform = self.labelOutputInverseTransformSelector.currentNode()
+                warpedLabel = self.labelOutputWarpedSelector.currentNode()
+                warpedIntensity = self.labelOutputWarpedIntensitySelector.currentNode()
+                metric = self.labelMetricComboBox.currentText
+                deformableTransform = self.labelDeformableTransformComboBox.currentText
+                
+                # Determine initial transform mode and parameters
+                useNone = self.labelNoInitialTransformRadio.checked
+                useCentroid = self.labelUseCentroidRadio.checked
+                useExisting = self.labelUseExistingTransformRadio.checked
+                centroidTransformType = self.labelCentroidTransformTypeComboBox.currentText if useCentroid else None
+                existingTransform = self.labelExistingTransformSelector.currentNode() if useExisting else None
+                
+                self.logic.labelImageRegistration(
+                    fixedLabel,
+                    movingLabel,
+                    fixedIntensity,
+                    movingIntensity,
+                    fixedMask,
+                    movingMask,
+                    forwardTransform,
+                    inverseTransform,
+                    warpedLabel,
+                    warpedIntensity,
+                    metric,
+                    deformableTransform,
+                    useCentroid,
+                    centroidTransformType,
+                    existingTransform
+                )
+            
+            self.runLabelRegistrationButton.text = "Run Label Registration"
+            self.uiWidget.enabled = True
+        except Exception as e:
+            self.runLabelRegistrationButton.text = "Run Label Registration"
+            self.uiWidget.enabled = True
+            raise e
 
 
     def cleanup(self):
@@ -526,6 +905,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.checkCanRunTemplateBuilding()
         self.checkCanRunAnalysis()
         self.checkCanGenerateImages()
+        self.checkCanRunAverage()
         self.setupDBMCache()
 
     def exit(self):
@@ -801,9 +1181,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def updateStagesFromFixedMovingNodes(self):
         if self._parameterNode is None or self._updatingGUIFromParameterNode:
             return
-        stagesList = json.loads(
-            self._parameterNode.GetParameter(self.logic.params.STAGES_JSON_PARAM)
-        )
+        stagesJson = self._parameterNode.GetParameter(self.logic.params.STAGES_JSON_PARAM)
+        if not stagesJson:
+            return
+        stagesList = json.loads(stagesJson)
         for stage in stagesList:
             stage["metrics"][0]["fixed"] = self.ui.fixedImageNodeComboBox.currentNodeID
             stage["metrics"][0][
@@ -939,8 +1320,15 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 forward = self.ui.outputForwardTransformComboBox.currentNode()
                 inverse = self.ui.outputInverseTransformComboBox.currentNode()
                 warped = self.ui.outputVolumeComboBox.currentNode()
-                fixedLandmarks = self.ui.fixedLandmarkSelector.currentNode()
-                movingLandmarks = self.ui.movingLandmarkSelector.currentNode()
+                
+                # Determine initial transform parameters only if group box is checked
+                useInitialTransform = self.ui.groupBox_3.checked
+                useLandmarks = self.ui.useLandmarkTransformRadio.checked and useInitialTransform
+                useExistingTransform = self.ui.useExistingTransformRadio.checked and useInitialTransform
+                fixedLandmarks = self.ui.fixedLandmarkSelector.currentNode() if useLandmarks else None
+                movingLandmarks = self.ui.movingLandmarkSelector.currentNode() if useLandmarks else None
+                landmarkTransformType = self.ui.landmarkTransformTypeComboBox.currentText.lower() if useLandmarks else None
+                existingTransform = self.ui.existingTransformSelector.currentNode() if useExistingTransform else None
 
                 self.logic.process_ANTsPY(
                     self.ui.transformTypeComboBox.currentText,
@@ -949,9 +1337,11 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                   forward,
                    inverse, 
                    warped, 
-                   self.ui.initialTransformPWCheckBox.checked,
+                   useLandmarks,
                    fixedLandmarks,
-                   movingLandmarks
+                   movingLandmarks,
+                   landmarkTransformType,
+                   existingTransform
                    )
             
             self.ui.runRegistrationButton.text = "Run Registration"
@@ -965,20 +1355,20 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onClearButton(self):
         self.ui.inputFileListWidget.clear()
         self.ui.clearButton.enabled = False
+        self.checkCanRunTemplateBuilding()
 
     def onRemoveImagePaths(self):
         selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
-
-        for i in selectedItemRows:
+        # Remove in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
             self.ui.inputFileListWidget.takeItem(i)
 
     def onBumpImagePath(self):
         selectedItemRows = [self.ui.inputFileListWidget.row(x) for x in self.ui.inputFileListWidget.selectedItems()]
-
-        for i in selectedItemRows:
+        # Process in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
             item = self.ui.inputFileListWidget.takeItem(i)
             self.ui.inputFileListWidget.insertItem(0, item)
-
         self.ui.inputFileListWidget.setCurrentRow(0)
 
     def onGoToSettings(self):
@@ -995,11 +1385,62 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         )  # Set file filter
         if fileDialog.exec_():
             inputFilePaths = list(fileDialog.selectedFiles())
-        for path in inputFilePaths:
-            self.ui.inputFileListWidget.addItem(path)
-        self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
-        self.checkCanRunTemplateBuilding()
+            for path in inputFilePaths:
+                self.ui.inputFileListWidget.addItem(path)
+            self.ui.clearButton.enabled = self.ui.inputFileListWidget.count !=0
+            self.checkCanRunTemplateBuilding()
 
+    def onSelectLandmarks(self):
+        fileDialog = qt.QFileDialog()
+        fileDialog.setFileMode(
+            qt.QFileDialog.ExistingFiles
+        )  # Set to open multiple existing files
+        fileDialog.setNameFilter(
+            "Landmark files(*.mrk.json *.fcsv);;All files (*.*)"
+        )  # Set file filter
+        if fileDialog.exec_():
+            landmarkPaths = list(fileDialog.selectedFiles())
+            for path in landmarkPaths:
+                self.ui.landmarkFileListWidget.addItem(path)
+            self.ui.clearLandmarkButton.enabled = self.ui.landmarkFileListWidget.count != 0
+            self.checkCanRunTemplateBuilding()
+    
+    def onClearLandmarks(self):
+        self.ui.landmarkFileListWidget.clear()
+        self.ui.clearLandmarkButton.enabled = False
+        self.checkCanRunTemplateBuilding()
+    
+    def onRemoveLandmarkPaths(self):
+        selectedItemRows = [self.ui.landmarkFileListWidget.row(x) for x in self.ui.landmarkFileListWidget.selectedItems()]
+        # Remove in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
+            self.ui.landmarkFileListWidget.takeItem(i)
+    
+    def onBumpLandmarkPath(self):
+        selectedItemRows = [self.ui.landmarkFileListWidget.row(x) for x in self.ui.landmarkFileListWidget.selectedItems()]
+        # Process in reverse order to avoid index shifting issues
+        for i in sorted(selectedItemRows, reverse=True):
+            item = self.ui.landmarkFileListWidget.takeItem(i)
+            self.ui.landmarkFileListWidget.insertItem(0, item)
+        self.ui.landmarkFileListWidget.setCurrentRow(0)
+
+    def onInitialTransformModeChanged(self):
+        """Handle radio button changes for initial transform selection"""
+        useLandmarks = self.ui.useLandmarkTransformRadio.checked
+        useExisting = self.ui.useExistingTransformRadio.checked
+        
+        # Enable/disable landmark-related widgets
+        self.ui.landmarkTransformTypeComboBox.enabled = useLandmarks
+        self.ui.fixedLandmarkSelector.enabled = useLandmarks
+        self.ui.movingLandmarkSelector.enabled = useLandmarks
+        # Enable label widgets (find by looking for QLabel siblings)
+        for label in [self.ui.label_44, self.ui.label_45, self.ui.label_46]:
+            label.enabled = useLandmarks
+        
+        # Enable/disable existing transform selector
+        self.ui.existingTransformSelector.enabled = useExisting
+        
+        self.checkCanRunPairwiseRegistration()
     
     def checkCanRunPairwiseRegistration(self):
 
@@ -1007,23 +1448,30 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.runRegistrationButton.enabled = outputSet and self.ui.fixedImageNodeComboBox.currentNode() and self.ui.movingImageNodeComboBox.currentNode()
 
-        if self.ui.initialTransformPWCheckBox.checked:
-            self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+        # If transform type is "None", initial transform is required
+        if self.ui.transformTypeComboBox.currentText == "None":
+            # Must have initial transform group checked and valid selection
+            if not self.ui.groupBox_3.checked:
+                self.ui.runRegistrationButton.enabled = False
+            elif self.ui.useLandmarkTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+            elif self.ui.useExistingTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.existingTransformSelector.currentNode()
+            else:
+                self.ui.runRegistrationButton.enabled = False
+        # Otherwise, only check initial transform requirements if the group box is checked
+        elif self.ui.groupBox_3.checked:
+            # Check initial transform requirements based on which mode is selected
+            if self.ui.useLandmarkTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.fixedLandmarkSelector.currentNode() and self.ui.movingLandmarkSelector.currentNode()
+            elif self.ui.useExistingTransformRadio.checked:
+                self.ui.runRegistrationButton.enabled = self.ui.runRegistrationButton.enabled and self.ui.existingTransformSelector.currentNode()
     
     
     def checkCanRunTemplateBuilding(self):
-
+        # Enable button if basic requirements are met - detailed validation happens at runtime
         filePaths = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
-
-        if self.ui.initialTransformTBCheckBox.checked:
-            check = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 and (len(landmarkPaths) == len(filePaths)) and self.ui.outputLandmarksSelector.currentNode()
-            self.ui.runTemplateBuilding.enabled = check
-            if self.ui.initialTemplateComboBox.currentNode():
-                 self.ui.runTemplateBuilding.enabled =  self.ui.runTemplateBuilding.enabled and self.ui.templateLandmarksTBSelector.currentNode()
-
-        else:
-            self.ui.runTemplateBuilding.enabled = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 
+        self.ui.runTemplateBuilding.enabled = self.ui.outTemplateComboBox.currentNode() and len(filePaths) > 0 
     
     
     def checkCanRunGroupRegistration(self):
@@ -1044,17 +1492,104 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.generateImageButton.enabled = self.logic.dbm and self.ui.outputImageComboBox.currentNode() and (self.ui.jacobianTemplateComboBox.currentNode() or self.ui.templateMaskComboBox.currentNode())
     
     
+    def checkCanRunAverage(self):
+        """Check if average can be computed based on valid inputs."""
+        directory = self.ui.averageInputDirectoryButton.directory
+        outputNode = self.ui.averageOutputVolumeComboBox.currentNode()
+        
+        hasValidInputs = False
+        if directory and os.path.isdir(directory):
+            # Check if there are image files
+            imageExtensions = ['.nii.gz', '.nii', '.nrrd', '.mha', '.mhd']
+            matchingFiles = [f for f in os.listdir(directory) 
+                           if any(f.endswith(ext) for ext in imageExtensions)]
+            hasValidInputs = len(matchingFiles) > 0
+        
+        self.ui.runAverageButton.enabled = hasValidInputs and outputNode is not None
+    
+    
+    def onRunAverage(self):
+        """Compute average of aligned images."""
+        self.uiWidget.enabled = False
+        self.ui.runAverageButton.text = "Computing average..."
+        slicer.app.processEvents()
+        
+        try:
+            directory = self.ui.averageInputDirectoryButton.directory
+            outputNode = self.ui.averageOutputVolumeComboBox.currentNode()
+            
+            # Get list of all image files
+            imageExtensions = ['.nii.gz', '.nii', '.nrrd', '.mha', '.mhd']
+            filePaths = []
+            for file in os.listdir(directory):
+                if any(file.endswith(ext) for ext in imageExtensions):
+                    filePaths.append(os.path.join(directory, file))
+            
+            if len(filePaths) == 0:
+                slicer.util.errorDisplay("No image files found in the directory.")
+                return
+            
+            # Compute average using ANTsPy
+            self.logic.computeAverageImage(filePaths, outputNode)
+            
+            # Display the result
+            slicer.util.setSliceViewerLayers(background=outputNode, fit=True)
+            slicer.util.infoDisplay(f"Successfully averaged {len(filePaths)} images.")
+            
+        except RuntimeError as e:
+            if "mismatch" in str(e).lower() or "dimension" in str(e).lower():
+                slicer.util.errorDisplay("To average, images need to be aligned to a common space.\n\nError: Images have mismatched dimensions or headers.")
+            else:
+                slicer.util.errorDisplay(f"Failed to compute average: {str(e)}")
+        except Exception as e:
+            slicer.util.errorDisplay(f"Failed to compute average: {str(e)}")
+        finally:
+            self.uiWidget.enabled = True
+            self.ui.runAverageButton.text = "Compute Average"
+    
+    
     def onRunTemplateBuilding(self):
+        # Validate inputs before starting
+        pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
+        landmarksPaths = None
+        
+        if self.ui.initialTransformTBCheckBox.checked:
+            # Get landmarks from list widget
+            landmarksPaths = [self.ui.landmarkFileListWidget.item(x).text() for x in range(self.ui.landmarkFileListWidget.count)]
+            
+            if not self.ui.outputLandmarksSelector.currentNode():
+                slicer.util.errorDisplay("Please select an output landmarks node when using landmark-based initial transform.")
+                return
+            
+            if self.ui.initialTemplateComboBox.currentNode() and not self.ui.templateLandmarksTBSelector.currentNode():
+                slicer.util.errorDisplay("Please select template landmarks when using an initial template with landmark-based transform.")
+                return
+            
+            # Check count mismatch first
+            if len(landmarksPaths) != len(pathList):
+                slicer.util.errorDisplay(
+                    f"Number of input images ({len(pathList)}) does not match number of landmark files ({len(landmarksPaths)}).\n\n"
+                    f"Please select {len(pathList)} landmark file(s) to match your input images."
+                )
+                return
+            
+            # Check for basename mismatches
+            try:
+                self.comparePathBasenames(pathList, landmarksPaths)
+            except IOError as e:
+                slicer.util.errorDisplay(
+                    f"Landmark file mismatch:\n\n{str(e)}\n\n"
+                    f"Make sure each image has a corresponding landmark file with matching basename."
+                )
+                return
+        
         self.uiWidget.enabled = False
         self.ui.runTemplateBuilding.text = "Template building in progess"
         slicer.app.processEvents()
         try:
             with slicer.util.tryWithErrorDisplay("Template building failed."):
-                pathList = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-                landmarksPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
-                if self.ui.initialTransformTBCheckBox.checked:
-                    self.checkTBLandmarks()
                 outputDirectory = os.path.join(self.ui.templateOutputDirectoryButton.directory, "TemplateBuilding_{0}".format(time.time()))
+                
                 self.logic.buildTemplateANTsPy(
                     self.ui.initialTemplateComboBox.currentNode(), 
                     pathList, 
@@ -1115,12 +1650,6 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformGWDirectoryButton.directory, ['.mrk.json', '.fcsv'])
 
         self.comparePathBasenames(imagePaths, landmarkPaths)
-
-    def checkTBLandmarks(self):
-        imagePaths = [self.ui.inputFileListWidget.item(x).text() for x in range(self.ui.inputFileListWidget.count)]
-        landmarkPaths = self.getInputsFromDirectory(self.ui.initialTransformTBDirectoryButton.directory, ['.mrk.json', '.fcsv'])
-
-        self.comparePathBasenames(imagePaths, landmarkPaths)
     
     def runGroupRegistration(self):
         outputPath  = self.ui.outputDirectoryButton.directory
@@ -1134,6 +1663,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             with slicer.util.tryWithErrorDisplay("Group registration failed."):
                 if self.ui.initialTransformGWCheckBox.checked:
                     self.checkGWLandmarks()
+                saveAlignedLandmarks = self.ui.saveAlignedLandmarksCheckBox.checked
                 self.logic.groupRegistrationANTsPy(
                     self.ui.inTemplateComboBox.currentNode(), 
                     filePaths, 
@@ -1145,7 +1675,8 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     self.ui.transformedCheckBox.checked,
                     self.ui.initialTransformGWCheckBox.checked,
                     landmarksPaths,
-                    self.ui.templateLandmarksGWSelector.currentNode()
+                    self.ui.templateLandmarksGWSelector.currentNode(),
+                    saveAlignedLandmarks
 
                 )
             self.uiWidget.enabled = True
@@ -1337,6 +1868,7 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         Called when the logic class is instantiated. Can be used for initializing member variables.
         """
         ITKANTsCommonLogic.__init__(self)
+        self._antsInstallChecked = False  # Track if ANTs installation has been checked
         if slicer.util.settingsValue(
             "Developer/DeveloperMode", False, converter=slicer.util.toBool
         ):
@@ -1521,6 +2053,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             useLandmarks,
             fixedLandmarks,
             movingLandmarks,
+            landmarkTransformType=None,
+            existingTransformNode=None,
 
     ):
         import ants
@@ -1529,9 +2063,30 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         movingImage = antsImageFromNode(movingNode)
         initialTransform = None
 
-        if useLandmarks:
-            initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks)
+        if useLandmarks and fixedLandmarks and movingLandmarks:
+            # Use landmark-based initial transform with specified type
+            transformTypeToUse = landmarkTransformType if landmarkTransformType else 'rigid'
+            # Pass fixedImage as domain_image for bspline/diffeo transforms
+            initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks, transformTypeToUse, domainImage=fixedImage)
+        elif existingTransformNode:
+            # Use existing transform from scene
+            initialTransform = self.convertTransformNodeToANTsFile(existingTransformNode)
 
+        # If transformType is "None", only compute and save the initial transform without registration
+        if transformType == "None":
+            if initialTransform:
+                # For all transforms (including bspline), initialTransform is now a list of file paths
+                if forwardTransformNode:
+                    nodeFromANTSTransform(initialTransform[0], forwardTransformNode)
+                if transformedImageNode:
+                    warpedImage = ants.apply_transforms(fixed=fixedImage, moving=movingImage, transformlist=initialTransform)
+                    nodeFromANTSImage(warpedImage, transformedImageNode)
+                    slicer.util.setSliceViewerLayers(background = transformedImageNode)
+            else:
+                slicer.util.errorDisplay("Transform type is set to 'None' but no initial transform was specified.")
+            return
+
+        # Perform full registration with initial transform
         reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
 
         if forwardTransformNode:
@@ -1544,6 +2099,22 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             nodeFromANTSImage(reg['warpedmovout'], transformedImageNode)
             slicer.util.setSliceViewerLayers(background = transformedImageNode)
     
+    def convertTransformNodeToANTsFile(self, transformNode):
+        """Convert a Slicer transform node to an ANTs-compatible file and return the path."""
+        import ants
+        
+        tempFilePath = os.path.join(
+            ANTsPyTemporaryPath(),
+            "initialTransform_{0}.h5".format(time.time()),
+        )
+        
+        # Save the transform node to a file
+        storageNode = slicer.vtkMRMLTransformStorageNode()
+        storageNode.SetFileName(tempFilePath)
+        storageNode.WriteData(transformNode)
+        
+        # Return as a list (ANTs expects a list of transform files)
+        return [tempFilePath]
     
     
     def process(
@@ -1715,7 +2286,8 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             outputTransformed=True,
             useLandmarks=False,
             landmarksPaths=None,
-            templateLandmarks = None
+            templateLandmarks = None,
+            saveAlignedLandmarks=False
             ):
         
         import ants
@@ -1727,14 +2299,27 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             print("Registering image {0} of {1}".format(i+1, len(pathlist)))
             slicer.app.processEvents()
             initialTransform = None
+            imageLandmarks = None
             if useLandmarks:
                 imageLandmarksPath = self.getLandmarksForImage(path, landmarksPaths)
                 imageLandmarks = slicer.util.loadMarkups(imageLandmarksPath)
                 initialTransform = createInitialTransform(templateLandmarks, imageLandmarks)
-                slicer.mrmlScene.RemoveNode(imageLandmarks)
             name, ext = os.path.basename(path).split(os.extsep, 1)
             moving = ants.image_read(path)
             reg = ants.registration(fixed=fixed, moving=moving, initial_transform=initialTransform,type_of_transform=transformtype, write_composite_transform=writeCompositeTransform)
+            
+            # Save aligned landmarks if requested
+            if saveAlignedLandmarks and useLandmarks and imageLandmarks:
+                # Handle both composite and non-composite transform formats
+                transforms = reg['fwdtransforms']
+                if not isinstance(transforms, list):
+                    transforms = [transforms]
+                self.saveAlignedLandmarksToFile(imageLandmarks, transforms, outputDirectory, name)
+            
+            # Clean up landmarks node
+            if imageLandmarks:
+                slicer.mrmlScene.RemoveNode(imageLandmarks)
+            
             if writeCompositeTransform:
                 if outputForward:
                     forwardName = os.path.join(outputDirectory, name +'-forward.h5')
@@ -1852,6 +2437,44 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         for point in range(0, source.GetNumberOfControlPoints()):
             pt = source.GetNthControlPointPosition(point)
             destination.AddControlPoint(pt)
+    
+    def saveAlignedLandmarksToFile(self, landmarksNode, transformList, outputDirectory, baseName):
+        """Save transformed landmarks to file with -transformed.mrk.json suffix.
+        
+        Args:
+            landmarksNode: The landmarks node to transform
+            transformList: List of transform file paths from ANTs registration
+            outputDirectory: Directory where to save the aligned landmarks
+            baseName: Base name for the output file
+        """
+        # Create output node for aligned landmarks
+        alignedLandmarksNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+        alignedLandmarksNode.SetName(baseName + '_transformed_temp')
+        
+        # Copy landmarks to new node
+        self.copyLandmarks(landmarksNode, alignedLandmarksNode)
+        
+        # Load the ANTs transforms into a Slicer transform node
+        tempTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+        tempTransformNode.SetName('temp_transform')
+        
+        # Load each transform file - transformList is in the order they should be applied
+        for transformPath in transformList:
+            nodeFromANTSTransform(transformPath, tempTransformNode)
+        
+        # Apply the transform to the landmarks node
+        alignedLandmarksNode.SetAndObserveTransformNodeID(tempTransformNode.GetID())
+        alignedLandmarksNode.HardenTransform()
+        
+        # Save the aligned landmarks with -transformed suffix to match volume naming
+        outputPath = os.path.join(outputDirectory, baseName + '-transformed.mrk.json')
+        slicer.util.saveNode(alignedLandmarksNode, outputPath)
+        
+        # Clean up temporary nodes
+        slicer.mrmlScene.RemoveNode(tempTransformNode)
+        slicer.mrmlScene.RemoveNode(alignedLandmarksNode)
+        
+        print(f"Saved transformed landmarks to: {outputPath}")
 
     
     def buildTemplate(
@@ -1957,6 +2580,11 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
             )
 
     def installANTsPyX(self):
+        # Only check installation once per session
+        if self._antsInstallChecked:
+            return
+        
+        self._antsInstallChecked = True
 
         try:
             import ants
@@ -2062,6 +2690,224 @@ class ANTsRegistrationLogic(ITKANTsCommonLogic):
         # get index of the correct covariate
 
         nodeFromANTSImage(output_Image, outputImageNode)
+
+
+    def computeAverageImage(self, filePaths, outputNode):
+        """
+        Compute average of aligned images.
+        
+        :param filePaths: List of file paths to images
+        :param outputNode: Output volume node to store the result
+        """
+        import ants
+        import numpy as np
+        
+        logging.info(f"Computing average of {len(filePaths)} images")
+        
+        try:
+            # Read all images
+            images = [ants.image_read(fp) for fp in filePaths]
+            
+            # Get the reference image (first one)
+            referenceImage = images[0]
+            
+            # Extract numpy arrays and compute mean
+            arrays = [img.numpy() for img in images]
+            meanArray = np.mean(arrays, axis=0)
+            
+            # Create new ANTs image from mean array, using reference image properties
+            averagedANTSImage = ants.from_numpy(
+                meanArray,
+                origin=referenceImage.origin,
+                spacing=referenceImage.spacing,
+                direction=referenceImage.direction
+            )
+            
+            # Convert to Slicer node
+            nodeFromANTSImage(averagedANTSImage, outputNode)
+            
+            logging.info("Average image computation completed successfully")
+            
+        except Exception as e:
+            # Re-raise with more context if it's a dimension mismatch
+            error_msg = str(e)
+            if "mismatch" in error_msg.lower() or "dimension" in error_msg.lower():
+                raise RuntimeError("Image dimensions or headers mismatch. Images must be aligned to a common space.")
+            else:
+                raise
+    
+    def labelImageRegistration(self, fixedLabelNode, movingLabelNode, fixedIntensityNode,
+                               movingIntensityNode, fixedMaskNode, movingMaskNode,
+                               forwardTransformNode, inverseTransformNode, warpedLabelNode, 
+                               warpedIntensityNode, metric, deformableTransform,
+                               useCentroid, centroidTransformType, existingTransformNode):
+        """
+        Register label images using ANTsPy label_image_registration.
+        
+        :param fixedLabelNode: Fixed label map volume node or segmentation node
+        :param movingLabelNode: Moving label map volume node or segmentation node
+        :param fixedIntensityNode: Optional fixed intensity image node for guidance
+        :param movingIntensityNode: Optional moving intensity image node for guidance
+        :param fixedMaskNode: Optional mask for fixed image
+        :param movingMaskNode: Optional mask for moving image
+        :param forwardTransformNode: Output forward transform node
+        :param inverseTransformNode: Output inverse transform node
+        :param warpedLabelNode: Output warped moving label node
+        :param warpedIntensityNode: Optional output warped moving intensity node
+        :param metric: Metric to use (e.g., 'MeanSquares', 'Mattes', 'GC')
+        :param deformableTransform: Type of deformable transform (e.g., 'SyN', 'BSplineSyN')
+        :param useCentroid: Boolean, if True compute initial transform from label centroids
+        :param centroidTransformType: Type of centroid transform ('rigid', 'similarity', 'affine')
+        :param existingTransformNode: Optional existing transform node to use as initial transform
+        """
+        import ants
+        
+        logging.info("Starting label image registration")
+        
+        # Keep track of temporary nodes to clean up later
+        tempNodes = []
+        
+        try:
+            # Convert segmentations to labelmaps if needed
+            fixedLabelVolume = self._getLabelmapFromNode(fixedLabelNode, tempNodes)
+            movingLabelVolume = self._getLabelmapFromNode(movingLabelNode, tempNodes)
+            
+            # Convert Slicer nodes to ANTs images
+            fixedLabel = antsImageFromNode(fixedLabelVolume)
+            movingLabel = antsImageFromNode(movingLabelVolume)
+            
+            # Handle masks if provided
+            fixed_mask = None
+            moving_mask = None
+            if fixedMaskNode:
+                fixedMaskVolume = self._getLabelmapFromNode(fixedMaskNode, tempNodes)
+                fixed_mask = antsImageFromNode(fixedMaskVolume)
+            if movingMaskNode:
+                movingMaskVolume = self._getLabelmapFromNode(movingMaskNode, tempNodes)
+                moving_mask = antsImageFromNode(movingMaskVolume)
+            
+            # Handle initial transform based on mode
+            initial_transform = None
+            if useCentroid and centroidTransformType:
+                # Mode 1: Compute from label centroids (pass string)
+                logging.info(f"Computing {centroidTransformType} transform from label centroids")
+                initial_transform = centroidTransformType
+            elif existingTransformNode:
+                # Mode 2: Use existing transform file (pass list of file paths)
+                logging.info("Using existing transform as initial transform")
+                initial_transform = self._getTransformListFromNode(existingTransformNode)
+            
+            # Prepare intensity images if provided
+            fixedIntensityList = None
+            movingIntensityList = None
+            if fixedIntensityNode and movingIntensityNode:
+                logging.info("Using intensity images for registration guidance")
+                fixedIntensity = antsImageFromNode(fixedIntensityNode)
+                movingIntensity = antsImageFromNode(movingIntensityNode)
+                fixedIntensityList = [fixedIntensity]
+                movingIntensityList = [movingIntensity]
+            
+            # Use ANTsPy's label_image_registration function
+            logging.info(f"Running label image registration with {deformableTransform} deformable transform")
+            result = ants.label_image_registration(
+                fixed_label_images=[fixedLabel],
+                moving_label_images=[movingLabel],
+                fixed_intensity_images=fixedIntensityList,
+                moving_intensity_images=movingIntensityList,
+                fixed_mask=fixed_mask,
+                moving_mask=moving_mask,
+                initial_transforms=initial_transform,
+                type_of_deformable_transform=deformableTransform,
+                label_image_weighting=1.0,
+                output_prefix='',
+                verbose=True
+            )
+            
+            # Save outputs - result is a dict with 'fwdtransforms' and 'invtransforms' (lists of file paths)
+            if forwardTransformNode and len(result['fwdtransforms']) > 0:
+                # Load the first forward transform
+                nodeFromANTSTransform(result['fwdtransforms'][0], forwardTransformNode)
+            
+            if inverseTransformNode and len(result['invtransforms']) > 0:
+                # Load the first inverse transform
+                nodeFromANTSTransform(result['invtransforms'][0], inverseTransformNode)
+            
+            if warpedLabelNode:
+                # For label images, use nearest neighbor interpolation
+                warpedLabel = ants.apply_transforms(
+                    fixed=fixedLabel,
+                    moving=movingLabel,
+                    transformlist=result['fwdtransforms'],
+                    interpolator='nearestNeighbor'
+                )
+                nodeFromANTSImage(warpedLabel, warpedLabelNode)
+                slicer.util.setSliceViewerLayers(background=warpedLabelNode, fit=True)
+            
+            # If intensity images were used and warped intensity output is requested
+            if warpedIntensityNode and fixedIntensityNode and movingIntensityNode:
+                logging.info("Warping moving intensity image")
+                movingIntensity = antsImageFromNode(movingIntensityNode)
+                fixedIntensity = antsImageFromNode(fixedIntensityNode)
+                warpedIntensity = ants.apply_transforms(
+                    fixed=fixedIntensity,
+                    moving=movingIntensity,
+                    transformlist=result['fwdtransforms'],
+                    interpolator='linear'
+                )
+                nodeFromANTSImage(warpedIntensity, warpedIntensityNode)
+            
+            logging.info("Label image registration completed successfully")
+            
+        finally:
+            # Clean up temporary labelmap nodes created from segmentations
+            for tempNode in tempNodes:
+                slicer.mrmlScene.RemoveNode(tempNode)
+    
+    def _getLabelmapFromNode(self, node, tempNodes):
+        """
+        Convert a segmentation node to labelmap volume, or return the node if it's already a volume.
+        Temporary nodes created are added to tempNodes list for cleanup.
+        
+        :param node: vtkMRMLSegmentationNode, vtkMRMLLabelMapVolumeNode, or vtkMRMLScalarVolumeNode
+        :param tempNodes: List to store temporary nodes for later cleanup
+        :return: vtkMRMLLabelMapVolumeNode or vtkMRMLScalarVolumeNode
+        """
+        if node.IsA("vtkMRMLSegmentationNode"):
+            # Create a temporary labelmap volume from the segmentation
+            labelmapVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+            labelmapVolumeNode.SetName(node.GetName() + "_temp_labelmap")
+            
+            # Export all segments to labelmap
+            slicer.modules.segmentations.logic().ExportAllSegmentsToLabelmapNode(
+                node, labelmapVolumeNode
+            )
+            
+            # Add to temp nodes list for cleanup
+            tempNodes.append(labelmapVolumeNode)
+            
+            return labelmapVolumeNode
+        else:
+            # Already a volume node
+            return node
+    
+    def _getTransformListFromNode(self, transformNode):
+        """
+        Convert a Slicer transform node to a file path list for ANTs.
+        
+        :param transformNode: vtkMRMLTransformNode
+        :return: List of transform file paths
+        """
+        import tempfile
+        import os
+        
+        # Create a temporary file to store the transform
+        temp_dir = tempfile.gettempdir()
+        transform_path = os.path.join(temp_dir, transformNode.GetName() + "_temp.h5")
+        
+        # Save the transform to file
+        slicer.util.saveNode(transformNode, transform_path)
+        
+        return [transform_path]
 
 
 
