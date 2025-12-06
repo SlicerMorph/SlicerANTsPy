@@ -164,9 +164,19 @@ def nodeFromANTSImage(antsImage, imageNode=None):
 
 
 def nodeFromANTSTransform(antsTransformPath, transformNode):
-
-
-
+    """Load ANTs transform(s) into a Slicer transform node.
+    
+    Args:
+        antsTransformPath: Either a single file path (string) or a list of file paths.
+                          If a list is provided, only the first transform is loaded.
+        transformNode: The Slicer transform node to load the transform into.
+    """
+    # Handle both single path and list of paths
+    if isinstance(antsTransformPath, list):
+        if len(antsTransformPath) == 0:
+            return
+        antsTransformPath = antsTransformPath[0]
+    
     storageNode = slicer.vtkMRMLTransformStorageNode()
     storageNode.SetFileName(antsTransformPath)
     storageNode.ReadData(transformNode, True)
@@ -180,9 +190,13 @@ def writeTransformSet(outputDirectory, name, direction, transforms):
         path, ext = os.path.basename(transform).split(os.extsep, 1)
         if ext == 'mat':
             filename = name +'-'+str(i)+ direction  + 'Affine.mat'
-
-        if ext == 'nii.gz':
+        elif ext == 'nii.gz':
             filename = name +'-'+str(i) +direction + 'Warp.nii.gz'
+        elif ext == 'h5':
+            filename = name +'-'+str(i) + direction + 'Composite.h5'
+        else:
+            # Fallback for unknown extensions - preserve original extension
+            filename = name +'-'+str(i) + direction + '.' + ext
         shutil.copy(transform, os.path.join(outputDirectory, filename))
 
 
@@ -1167,9 +1181,10 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def updateStagesFromFixedMovingNodes(self):
         if self._parameterNode is None or self._updatingGUIFromParameterNode:
             return
-        stagesList = json.loads(
-            self._parameterNode.GetParameter(self.logic.params.STAGES_JSON_PARAM)
-        )
+        stagesJson = self._parameterNode.GetParameter(self.logic.params.STAGES_JSON_PARAM)
+        if not stagesJson:
+            return
+        stagesList = json.loads(stagesJson)
         for stage in stagesList:
             stage["metrics"][0]["fixed"] = self.ui.fixedImageNodeComboBox.currentNodeID
             stage["metrics"][0][
