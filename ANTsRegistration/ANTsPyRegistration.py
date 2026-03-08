@@ -255,14 +255,14 @@ def createInitialTransform(fixed_landmarks, moving_landmarks, transform_type='ri
 
 
 
-class ANTsRegistration(ScriptedLoadableModule):
+class ANTsPyRegistration(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("ANTs Registration")
+        self.parent.title = _("ANTsPy Registration")
         self.parent.categories = [
             translate("qSlicerAbstractCoreModule", "Registration")
         ]
@@ -282,7 +282,7 @@ and was partially funded by NIH grant P01HD104435.
         )
 
 
-class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """Uses ScriptedLoadableModuleWidget base class, available at:
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
     """
@@ -316,7 +316,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Load widget from .ui file (created by Qt Designer).
         # Additional widgets can be instantiated manually and added to self.layout.
-        self.uiWidget = slicer.util.loadUI(self.resourcePath("UI/ANTsRegistration.ui"))
+        self.uiWidget = slicer.util.loadUI(self.resourcePath("UI/ANTsPyRegistration.ui"))
         self.layout.addWidget(self.uiWidget)
         self.ui = slicer.util.childWidgetVariables(self.uiWidget)
 
@@ -324,7 +324,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName
         )
         self.ui.parameterNodeSelector.setNodeTypeLabel(
-            "ANTsRegistrationParameters", "vtkMRMLScriptedModuleNode"
+            "ANTsPyRegistrationParameters", "vtkMRMLScriptedModuleNode"
         )
 
         # Set custom UI components
@@ -348,7 +348,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
-        self.logic = ANTsRegistrationLogic()
+        self.logic = ANTsPyRegistrationLogic()
 
         self.ui.stagesPresetsComboBox.addItems(
             ["Select..."] + PresetManager().getPresetNames()
@@ -1837,7 +1837,7 @@ class ANTsRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
 
 
-class ANTsRegistrationLogic(ITKANTsCommonLogic):
+class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
     """This class should implement all the actual
     computation done by your module.  The interface
     should be such that other python code can import
@@ -2962,7 +2962,7 @@ class PresetManager:
         return [os.path.splitext(os.path.basename(g))[0] for g in G]
 
 
-class ANTsRegistrationTest(ScriptedLoadableModuleTest):
+class ANTsPyRegistrationTest(ScriptedLoadableModuleTest):
     """
     This is the test case for your scripted module.
     Uses ScriptedLoadableModuleTest base class, available at:
@@ -2976,9 +2976,9 @@ class ANTsRegistrationTest(ScriptedLoadableModuleTest):
     def runTest(self):
         """Run as few or as many tests as needed here."""
         self.setUp()
-        self.test_ANTsRegistration1()
+        self.test_ANTsPyRegistration1()
 
-    def test_ANTsRegistration1(self):
+    def test_ANTsPyRegistration1(self):
         """Ideally you should have several levels of tests.  At the lowest level
         tests should exercise the functionality of the logic with different inputs
         (both valid and invalid).  At higher levels your tests should emulate the
@@ -3011,7 +3011,7 @@ class ANTsRegistrationTest(ScriptedLoadableModuleTest):
         )
         outputVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
 
-        logic = ANTsRegistrationLogic()
+        logic = ANTsPyRegistrationLogic()
         presetParameters = PresetManager().getPresetParametersByName("QuickSyN")
         for stage in presetParameters["stages"]:
             for metric in stage["metrics"]:
