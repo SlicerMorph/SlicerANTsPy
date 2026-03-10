@@ -2590,6 +2590,11 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             import ants
         except:
             import platform
+            # antspyx declares scipy<1.16, but Slicer bundles scipy>=1.16.
+            # Installing with deps would downgrade scipy and break Slicer.
+            # So we install antspyx without deps first, then add only the
+            # missing deps explicitly (omitting scipy).
+            antspyx_deps = 'pandas pyyaml statsmodels webcolors matplotlib scikit-learn'
             if platform.system() == 'Linux':
                 import urllib.request
                 import tempfile
@@ -2604,7 +2609,7 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 urllib.request.urlretrieve(download_url, whl_path)
                 logging.info(f"Downloaded to {whl_path}")
                 
-                slicer.util.pip_install(whl_path)
+                slicer.util.pip_install(f'{whl_path} --no-deps')
                 
                 # Clean up the downloaded file
                 try:
@@ -2612,7 +2617,8 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 except:
                     pass
             else:
-                slicer.util.pip_install('antspyx')
+                slicer.util.pip_install('antspyx --no-deps')
+            slicer.util.pip_install(antspyx_deps)
 
 
     def generateJacobian(self, pathList, templateNode, templateMaskNode, covariatesFilePath, rformula):
