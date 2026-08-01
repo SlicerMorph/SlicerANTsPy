@@ -16,6 +16,11 @@ The ANTsPy library wraps image processing framework ANTs in Python. It includes 
 
 <img src="./AntsPy_GUI.png">
 
+## Tutorial
+A step-by-step walkthrough of the full workflow - template building, group-wise registration, and tensor-based morphometry on a 29 specimen mouse cranium dataset - is maintained with the rest of the SlicerMorph tutorials:
+
+**[ANTsPy Volumetric Registration Tutorial](https://github.com/SlicerMorph/Tutorials/blob/main/ANTsPy/README.md)**
+
 ## Official ANTsPy Documentation
 https://antspyx.readthedocs.io/en/latest/
 
