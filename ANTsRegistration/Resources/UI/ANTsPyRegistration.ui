@@ -251,6 +251,41 @@
                </property>
               </widget>
              </item>
+             <item row="4" column="0">
+              <widget class="QLabel" name="displacementFieldDownsamplingLabel">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="text">
+                <string>Displacement field downsampling:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="1">
+              <widget class="QDoubleSpinBox" name="displacementFieldDownsamplingSpinBox">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="toolTip">
+                <string>Only used when the selected existing transform is non-linear. Such a transform is flattened to a displacement field sampled on the fixed image grid, which can be very large; a factor of 2 halves the resolution along each axis, making the field 8 times smaller. Landmark based warps are smooth, so little accuracy is lost.</string>
+               </property>
+               <property name="decimals">
+                <number>1</number>
+               </property>
+               <property name="minimum">
+                <double>1.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>16.000000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>1.000000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </item>
             </layout>
            </widget>
           </item>

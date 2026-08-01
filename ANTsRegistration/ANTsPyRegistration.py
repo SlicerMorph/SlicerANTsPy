@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import json
 import glob
@@ -164,22 +165,94 @@ def nodeFromANTSImage(antsImage, imageNode=None):
 
 
 def nodeFromANTSTransform(antsTransformPath, transformNode):
-    """Load ANTs transform(s) into a Slicer transform node.
-    
+    """Load an ANTs transform into a Slicer transform node.
+
     Args:
         antsTransformPath: Either a single file path (string) or a list of file paths.
                           If a list is provided, only the first transform is loaded.
         transformNode: The Slicer transform node to load the transform into.
+
+    Only the first path of a list is loaded, so callers must pass a single file that
+    already holds the complete mapping. This is why registrations are run with
+    write_composite_transform=True: with per-stage output, an initial transform comes
+    back as an extra entry in the list and keeping only the first one would silently
+    drop the initial alignment (see issue #33).
     """
     # Handle both single path and list of paths
     if isinstance(antsTransformPath, list):
         if len(antsTransformPath) == 0:
             return
+        if len(antsTransformPath) > 1:
+            logging.warning(
+                "nodeFromANTSTransform: %d transform files were provided but only '%s' is loaded; "
+                "the remaining stages are ignored." % (len(antsTransformPath), antsTransformPath[0])
+            )
         antsTransformPath = antsTransformPath[0]
-    
+
+    if not os.path.isfile(antsTransformPath):
+        raise RuntimeError("ANTs did not write the expected transform file: %s" % antsTransformPath)
+
     storageNode = slicer.vtkMRMLTransformStorageNode()
     storageNode.SetFileName(antsTransformPath)
-    storageNode.ReadData(transformNode, True)
+    if not storageNode.ReadData(transformNode, True):
+        raise RuntimeError("Failed to load the transform file written by ANTs: %s" % antsTransformPath)
+
+
+def coarseReferenceVolumeNode(referenceVolumeNode, downsamplingFactor):
+    """Create a temporary, empty volume node with the geometry of referenceVolumeNode but a coarser grid.
+
+    Flattening a transform into a displacement field stores one vector per voxel of the
+    reference grid, so a full resolution micro-CT easily produces a several hundred MB
+    field. Landmark based warps are smooth, so a coarser grid costs very little accuracy.
+
+    The caller is responsible for removing the returned node from the scene.
+    """
+    imageData = referenceVolumeNode.GetImageData()
+    if imageData is None:
+        raise ValueError("Reference volume '%s' has no image data." % referenceVolumeNode.GetName())
+
+    coarseDimensions = [max(2, int(math.ceil(dimension / float(downsamplingFactor)))) for dimension in imageData.GetDimensions()]
+    coarseImageData = vtk.vtkImageData()
+    coarseImageData.SetDimensions(coarseDimensions)
+    coarseImageData.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
+
+    # Scaling the columns of the IJK to RAS matrix scales the voxel size while keeping
+    # the origin and the axis directions, so the coarse grid covers the same region.
+    ijkToRAS = vtk.vtkMatrix4x4()
+    referenceVolumeNode.GetIJKToRASMatrix(ijkToRAS)
+    for row in range(3):
+        for column in range(3):
+            ijkToRAS.SetElement(row, column, ijkToRAS.GetElement(row, column) * downsamplingFactor)
+
+    coarseVolumeNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "ANTsPyReferenceGrid")
+    coarseVolumeNode.SetAndObserveImageData(coarseImageData)
+    coarseVolumeNode.SetIJKToRASMatrix(ijkToRAS)
+    return coarseVolumeNode
+
+
+def verifyANTsCanReadTransform(transformFilePath):
+    """Raise a RuntimeError if ANTs cannot read the transform file, explaining why.
+
+    antsRegistration reports an initial transform it cannot read only as
+    "Registration failed with error code 1", which gives the user nothing to act on
+    (issue #33), so the file is checked here while the actual ITK error is still available.
+    """
+    import ants
+
+    if not os.path.isfile(transformFilePath):
+        raise RuntimeError("The initial transform was not written to %s." % transformFilePath)
+
+    try:
+        if transformFilePath.endswith((".nii", ".nii.gz", ".nrrd", ".nhdr", ".mha", ".mhd")):
+            # A displacement field is an image; only the header is read to avoid loading
+            # the whole field an extra time.
+            ants.image_header_info(transformFilePath)
+        else:
+            ants.read_transform(transformFilePath)
+    except Exception as readError:
+        raise RuntimeError(
+            "ANTs cannot read the initial transform written to %s:\n%s" % (transformFilePath, str(readError))
+        )
 
 
 
@@ -789,7 +862,28 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
         self.labelExistingTransformSelector.enabled = False
         existingTransformLayout.addWidget(self.labelExistingTransformSelector)
         initialTransformLayout.addRow(existingTransformLayout)
-        
+
+        # Grid used when a non-linear existing transform has to be flattened
+        downsamplingLayout = qt.QHBoxLayout()
+        downsamplingLayout.addSpacing(20)  # Indent
+        self.labelDownsamplingLabel = qt.QLabel("Displacement field downsampling:")
+        self.labelDisplacementFieldDownsamplingSpinBox = qt.QDoubleSpinBox()
+        self.labelDisplacementFieldDownsamplingSpinBox.decimals = 1
+        self.labelDisplacementFieldDownsamplingSpinBox.minimum = 1.0
+        self.labelDisplacementFieldDownsamplingSpinBox.maximum = 16.0
+        self.labelDisplacementFieldDownsamplingSpinBox.singleStep = 1.0
+        self.labelDisplacementFieldDownsamplingSpinBox.value = 1.0
+        self.labelDisplacementFieldDownsamplingSpinBox.setToolTip(
+            "Only used when the selected existing transform is non-linear. Such a transform is flattened to a "
+            "displacement field sampled on the fixed label image grid, which can be very large; a factor of 2 "
+            "halves the resolution along each axis, making the field 8 times smaller.")
+        self.labelDownsamplingLabel.enabled = False
+        self.labelDisplacementFieldDownsamplingSpinBox.enabled = False
+        downsamplingLayout.addWidget(self.labelDownsamplingLabel)
+        downsamplingLayout.addWidget(self.labelDisplacementFieldDownsamplingSpinBox)
+        downsamplingLayout.addStretch()
+        initialTransformLayout.addRow(downsamplingLayout)
+
         # Run button
         self.runLabelRegistrationButton = qt.QPushButton("Run Label Registration")
         self.runLabelRegistrationButton.toolTip = "Run label image registration"
@@ -820,7 +914,10 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
         
         # Enable/disable existing transform selector
         self.labelExistingTransformSelector.enabled = useExisting
-        
+        # Only an existing transform can be non-linear, so only then can it need flattening
+        self.labelDownsamplingLabel.enabled = useExisting
+        self.labelDisplacementFieldDownsamplingSpinBox.enabled = useExisting
+
         self.checkCanRunLabelRegistration()
     
     def checkCanRunLabelRegistration(self):
@@ -860,7 +957,8 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
                 useExisting = self.labelUseExistingTransformRadio.checked
                 centroidTransformType = self.labelCentroidTransformTypeComboBox.currentText if useCentroid else None
                 existingTransform = self.labelExistingTransformSelector.currentNode() if useExisting else None
-                
+                displacementFieldDownsamplingFactor = self.labelDisplacementFieldDownsamplingSpinBox.value
+
                 self.logic.labelImageRegistration(
                     fixedLabel,
                     movingLabel,
@@ -876,7 +974,8 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
                     deformableTransform,
                     useCentroid,
                     centroidTransformType,
-                    existingTransform
+                    existingTransform,
+                    displacementFieldDownsamplingFactor
                 )
             
             self.runLabelRegistrationButton.text = "Run Label Registration"
@@ -1329,19 +1428,21 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
                 movingLandmarks = self.ui.movingLandmarkSelector.currentNode() if useLandmarks else None
                 landmarkTransformType = self.ui.landmarkTransformTypeComboBox.currentText.lower() if useLandmarks else None
                 existingTransform = self.ui.existingTransformSelector.currentNode() if useExistingTransform else None
+                displacementFieldDownsamplingFactor = self.ui.displacementFieldDownsamplingSpinBox.value
 
                 self.logic.process_ANTsPY(
                     self.ui.transformTypeComboBox.currentText,
-                   fixed, 
+                   fixed,
                    moving,
                   forward,
-                   inverse, 
-                   warped, 
+                   inverse,
+                   warped,
                    useLandmarks,
                    fixedLandmarks,
                    movingLandmarks,
                    landmarkTransformType,
-                   existingTransform
+                   existingTransform,
+                   displacementFieldDownsamplingFactor
                    )
             
             self.ui.runRegistrationButton.text = "Run Registration"
@@ -1439,7 +1540,10 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
         
         # Enable/disable existing transform selector
         self.ui.existingTransformSelector.enabled = useExisting
-        
+        # Only an existing transform can be non-linear, so only then can it need flattening
+        self.ui.displacementFieldDownsamplingLabel.enabled = useExisting
+        self.ui.displacementFieldDownsamplingSpinBox.enabled = useExisting
+
         self.checkCanRunPairwiseRegistration()
     
     def checkCanRunPairwiseRegistration(self):
@@ -2055,6 +2159,7 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             movingLandmarks,
             landmarkTransformType=None,
             existingTransformNode=None,
+            displacementFieldDownsamplingFactor=1.0,
 
     ):
         import ants
@@ -2069,8 +2174,10 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             # Pass fixedImage as domain_image for bspline/diffeo transforms
             initialTransform = createInitialTransform(fixedLandmarks, movingLandmarks, transformTypeToUse, domainImage=fixedImage)
         elif existingTransformNode:
-            # Use existing transform from scene
-            initialTransform = self.convertTransformNodeToANTsFile(existingTransformNode)
+            # Use existing transform from scene. The fixed image is the reference geometry
+            # used if the transform has to be flattened to a displacement field.
+            initialTransform = self.convertTransformNodeToANTsFile(
+                existingTransformNode, fixedNode, displacementFieldDownsamplingFactor)
 
         # If transformType is "None", only compute and save the initial transform without registration
         if transformType == "None":
@@ -2086,36 +2193,144 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 slicer.util.errorDisplay("Transform type is set to 'None' but no initial transform was specified.")
             return
 
-        # Perform full registration with initial transform
+        # Perform full registration with initial transform.
+        # write_composite_transform=True is required, not incidental: ANTs treats an initial
+        # transform as stage 0, so with per-stage output 'fwdtransforms' holds several files
+        # and only the composite carries the complete fixed -> moving mapping in one file
+        # (see nodeFromANTSTransform and issue #33).
         reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
 
         if forwardTransformNode:
             nodeFromANTSTransform(reg['fwdtransforms'], forwardTransformNode)
 
         if inverseTransformNode:
-            nodeFromANTSTransform(reg['invtransforms'], inverseTransformNode)
+            # ANTs only writes the inverse composite when every stage can be inverted. A
+            # displacement field, which is how a non-linear initial transform is passed in,
+            # has no analytic inverse, so the file is simply absent while antspyx still
+            # reports a path for it. Report that instead of leaving an empty output node.
+            inverseTransformPaths = reg['invtransforms']
+            if isinstance(inverseTransformPaths, str):
+                inverseTransformPaths = [inverseTransformPaths]
+            if inverseTransformPaths and os.path.isfile(inverseTransformPaths[0]):
+                nodeFromANTSTransform(inverseTransformPaths, inverseTransformNode)
+            else:
+                slicer.util.warningDisplay(
+                    "The inverse transform could not be computed because the initial transform is non-linear.\n\n"
+                    "ANTs writes an inverse only when every part of the registration can be inverted, and a "
+                    "non-linear initial transform is passed to ANTs as a displacement field, which cannot be "
+                    "inverted analytically. '%s' is left empty; the forward transform and the resampled image "
+                    "are unaffected.\n\n"
+                    "To obtain an inverse, use a linear initial transform, or invert the initial transform in "
+                    "Slicer and combine it with the inverse of a registration run without an initial transform."
+                    % inverseTransformNode.GetName()
+                )
 
         if transformedImageNode:
             nodeFromANTSImage(reg['warpedmovout'], transformedImageNode)
             slicer.util.setSliceViewerLayers(background = transformedImageNode)
     
-    def convertTransformNodeToANTsFile(self, transformNode):
-        """Convert a Slicer transform node to an ANTs-compatible file and return the path."""
-        import ants
-        
-        tempFilePath = os.path.join(
-            ANTsPyTemporaryPath(),
-            "initialTransform_{0}.h5".format(time.time()),
-        )
-        
-        # Save the transform node to a file
-        storageNode = slicer.vtkMRMLTransformStorageNode()
-        storageNode.SetFileName(tempFilePath)
-        storageNode.WriteData(transformNode)
-        
-        # Return as a list (ANTs expects a list of transform files)
-        return [tempFilePath]
-    
+    def convertTransformNodeToANTsFile(self, transformNode, referenceVolumeNode=None, displacementFieldDownsamplingFactor=1.0):
+        """Convert a Slicer transform node to an ANTs-compatible file and return the path.
+
+        The complete transform to world is written, not only the selected node's own
+        transform to parent. Transform nodes are routinely chained - FastModelAlign, for
+        example, leaves a scaling -> rigid -> deformable chain in the scene and only the
+        leaf carries the full alignment - so writing a single link would initialize the
+        registration with a fraction of the alignment the user selected (issue #34).
+
+        Linear transforms are written as an ITK transform file (.h5). Non-linear transforms
+        are flattened onto the reference volume's grid and written as a displacement field
+        (.nii.gz): Slicer serializes a thin plate spline node as an ITK
+        ThinPlateSplineKernelTransform, which is not registered in the transform factory of
+        the ITK build used by ANTs, so antsRegistration cannot read it (issue #33).
+
+        :param transformNode: transform node to serialize
+        :param referenceVolumeNode: volume defining the sampling grid of the displacement
+            field, normally the fixed image. Required for non-linear transforms.
+        :param displacementFieldDownsamplingFactor: values above 1 make that grid coarser
+            (2 halves the resolution along each axis, so the field is 8 times smaller)
+        :return: list holding a single transform file path, as ANTs expects a list
+        """
+        if not transformNode:
+            return None
+
+        temporaryDirectory = ANTsPyTemporaryPath()
+        if not os.path.exists(temporaryDirectory):
+            os.makedirs(temporaryDirectory)
+
+        temporaryNodes = []
+        try:
+            if transformNode.IsTransformToWorldLinear():
+                transformFilePath = os.path.join(
+                    temporaryDirectory,
+                    "initialTransform_{0}.h5".format(time.time()),
+                )
+                flattenedNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", "ANTsPyInitialTransform")
+                temporaryNodes.append(flattenedNode)
+                toWorldMatrix = vtk.vtkMatrix4x4()
+                transformNode.GetMatrixTransformToWorld(toWorldMatrix)
+                flattenedNode.SetMatrixTransformToParent(toWorldMatrix)
+
+                storageNode = slicer.vtkMRMLTransformStorageNode()
+                storageNode.SetFileName(transformFilePath)
+                if not storageNode.WriteData(flattenedNode):
+                    raise RuntimeError(
+                        "Could not write the initial transform '%s' to %s." % (transformNode.GetName(), transformFilePath)
+                    )
+            else:
+                if not referenceVolumeNode or not referenceVolumeNode.GetImageData():
+                    raise ValueError(
+                        "A reference volume is required to use the non-linear transform '%s' as initial transform."
+                        % transformNode.GetName()
+                    )
+
+                transformFilePath = os.path.join(
+                    temporaryDirectory,
+                    "initialTransform_{0}.nii.gz".format(time.time()),
+                )
+                flattenedNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode", "ANTsPyInitialTransform")
+                temporaryNodes.append(flattenedNode)
+                toWorldTransform = vtk.vtkGeneralTransform()
+                transformNode.GetTransformToWorld(toWorldTransform)
+                flattenedNode.SetAndObserveTransformToParent(toWorldTransform)
+
+                gridReferenceNode = referenceVolumeNode
+                if displacementFieldDownsamplingFactor and displacementFieldDownsamplingFactor > 1.0:
+                    gridReferenceNode = coarseReferenceVolumeNode(referenceVolumeNode, displacementFieldDownsamplingFactor)
+                    temporaryNodes.append(gridReferenceNode)
+                logging.info(
+                    "Flattening non-linear initial transform '%s' to a displacement field of %s voxels"
+                    % (transformNode.GetName(), str(gridReferenceNode.GetImageData().GetDimensions()))
+                )
+
+                # ConvertToGridTransform returns a new node, it does not modify in place.
+                gridTransformNode = slicer.modules.transforms.logic().ConvertToGridTransform(flattenedNode, gridReferenceNode)
+                if not gridTransformNode:
+                    raise RuntimeError(
+                        "Could not flatten the initial transform '%s' to a displacement field over '%s'."
+                        % (transformNode.GetName(), referenceVolumeNode.GetName())
+                    )
+                temporaryNodes.append(gridTransformNode)
+
+                # saveNode writes the transform in its from-parent direction, which is the
+                # fixed -> moving mapping that ANTs expects of an initial transform. A grid
+                # transform cannot be written with a bare storage node, unlike a linear one.
+                if not slicer.util.saveNode(gridTransformNode, transformFilePath):
+                    raise RuntimeError(
+                        "Could not write the initial transform '%s' to %s." % (transformNode.GetName(), transformFilePath)
+                    )
+
+            # Fail here, with the ITK error, rather than inside antsRegistration, which
+            # only reports "Registration failed with error code 1".
+            verifyANTsCanReadTransform(transformFilePath)
+
+            # Return as a list (ANTs expects a list of transform files)
+            return [transformFilePath]
+        finally:
+            for temporaryNode in temporaryNodes:
+                slicer.mrmlScene.RemoveNode(temporaryNode)
+
+
     
     def process(
         self,
@@ -2746,7 +2961,8 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                                movingIntensityNode, fixedMaskNode, movingMaskNode,
                                forwardTransformNode, inverseTransformNode, warpedLabelNode, 
                                warpedIntensityNode, metric, deformableTransform,
-                               useCentroid, centroidTransformType, existingTransformNode):
+                               useCentroid, centroidTransformType, existingTransformNode,
+                               displacementFieldDownsamplingFactor=1.0):
         """
         Register label images using ANTsPy label_image_registration.
         
@@ -2765,6 +2981,8 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
         :param useCentroid: Boolean, if True compute initial transform from label centroids
         :param centroidTransformType: Type of centroid transform ('rigid', 'similarity', 'affine')
         :param existingTransformNode: Optional existing transform node to use as initial transform
+        :param displacementFieldDownsamplingFactor: coarsening factor of the grid a non-linear
+            initial transform is flattened onto (1 keeps the fixed label image resolution)
         """
         import ants
         
@@ -2799,9 +3017,12 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 logging.info(f"Computing {centroidTransformType} transform from label centroids")
                 initial_transform = centroidTransformType
             elif existingTransformNode:
-                # Mode 2: Use existing transform file (pass list of file paths)
+                # Mode 2: Use existing transform file (pass list of file paths). The fixed
+                # label image is the reference geometry used if the transform has to be
+                # flattened to a displacement field.
                 logging.info("Using existing transform as initial transform")
-                initial_transform = self._getTransformListFromNode(existingTransformNode)
+                initial_transform = self._getTransformListFromNode(
+                    existingTransformNode, fixedLabelVolume, displacementFieldDownsamplingFactor)
             
             # Prepare intensity images if provided
             fixedIntensityList = None
@@ -2834,9 +3055,22 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 # Load the first forward transform
                 nodeFromANTSTransform(result['fwdtransforms'][0], forwardTransformNode)
             
-            if inverseTransformNode and len(result['invtransforms']) > 0:
-                # Load the first inverse transform
-                nodeFromANTSTransform(result['invtransforms'][0], inverseTransformNode)
+            if inverseTransformNode:
+                # ANTs writes an inverse only when every part of the registration can be
+                # inverted; a non-linear initial transform is passed as a displacement
+                # field, which cannot be, so the file may be missing (see process_ANTsPY).
+                inverseTransformPaths = result['invtransforms']
+                if isinstance(inverseTransformPaths, str):
+                    inverseTransformPaths = [inverseTransformPaths]
+                if inverseTransformPaths and os.path.isfile(inverseTransformPaths[0]):
+                    # Load the first inverse transform
+                    nodeFromANTSTransform(inverseTransformPaths[0], inverseTransformNode)
+                else:
+                    slicer.util.warningDisplay(
+                        "ANTs did not produce an inverse transform, so '%s' is left empty. This happens when the "
+                        "initial transform is non-linear and therefore cannot be inverted analytically. The forward "
+                        "transform and the warped outputs are unaffected." % inverseTransformNode.GetName()
+                    )
             
             if warpedLabelNode:
                 # For label images, use nearest neighbor interpolation
@@ -2896,24 +3130,22 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             # Already a volume node
             return node
     
-    def _getTransformListFromNode(self, transformNode):
+    def _getTransformListFromNode(self, transformNode, referenceVolumeNode=None, displacementFieldDownsamplingFactor=1.0):
         """
         Convert a Slicer transform node to a file path list for ANTs.
-        
+
+        Delegates to convertTransformNodeToANTsFile so that the parent chain is flattened
+        (issue #34) and non-linear transforms are serialized in a format ANTs can read
+        (issue #33).
+
         :param transformNode: vtkMRMLTransformNode
+        :param referenceVolumeNode: volume defining the displacement field grid used for
+            non-linear transforms
+        :param displacementFieldDownsamplingFactor: coarsening factor for that grid
         :return: List of transform file paths
         """
-        import tempfile
-        import os
-        
-        # Create a temporary file to store the transform
-        temp_dir = tempfile.gettempdir()
-        transform_path = os.path.join(temp_dir, transformNode.GetName() + "_temp.h5")
-        
-        # Save the transform to file
-        slicer.util.saveNode(transformNode, transform_path)
-        
-        return [transform_path]
+        return self.convertTransformNodeToANTsFile(
+            transformNode, referenceVolumeNode, displacementFieldDownsamplingFactor)
 
 
 
