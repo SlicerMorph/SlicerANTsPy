@@ -198,6 +198,67 @@ def nodeFromANTSTransform(antsTransformPath, transformNode):
         raise RuntimeError("Failed to load the transform file written by ANTs: %s" % antsTransformPath)
 
 
+def composeANTsTransformList(transformPaths, referenceImage, whichtoinvert=None):
+    """Collapse a list of ANTs transform files into the path of a single transform file.
+
+    ANTs writes one file per registration stage and treats an initial transform as stage 0,
+    so keeping only the first file of a returned list drops part of the mapping (see
+    nodeFromANTSTransform and issue #33). antsApplyTransforms composes the list itself, in
+    its own order and with its own inversion rules, which is what `compose` returns here.
+
+    Reading the result logs "Intent code is expected to be '1006'": ANTs marks the composed
+    field as a generic NIFTI vector image (1007) rather than a displacement field (1006).
+    That warning is about the label only, the field itself is read correctly.
+
+    :param transformPaths: transform files as ANTs returns them, in ANTs order
+    :param referenceImage: ANTs image whose grid the composed displacement field covers
+    :param whichtoinvert: per transform flag, as ANTs uses it; only .mat entries can be inverted
+    :return: path of a single transform file holding the complete mapping
+    """
+    import ants
+
+    if len(transformPaths) == 1 and not (whichtoinvert and whichtoinvert[0]):
+        return transformPaths[0]
+
+    temporaryDirectory = ANTsPyTemporaryPath()
+    if not os.path.exists(temporaryDirectory):
+        os.makedirs(temporaryDirectory)
+    composedPrefix = os.path.join(temporaryDirectory, "composedTransform_{0}".format(time.time()))
+
+    logging.info("Composing %d ANTs transforms into a single displacement field" % len(transformPaths))
+    composedPath = ants.apply_transforms(
+        fixed=referenceImage,
+        moving=referenceImage,
+        transformlist=transformPaths,
+        whichtoinvert=whichtoinvert,
+        compose=composedPrefix,
+    )
+    if not composedPath or not os.path.isfile(composedPath):
+        raise RuntimeError("Could not compose the transforms returned by ANTs: %s" % str(transformPaths))
+    return composedPath
+
+
+def removeTemporaryTransformFiles(transformPaths):
+    """Delete transform files this module wrote into its temporary directory.
+
+    Displacement fields are large - a fine grid easily reaches hundreds of MB - so the
+    files serialized for a run are not left to accumulate over a session. Paths outside
+    the temporary directory are left alone, so a file ANTs owns is never removed.
+    """
+    if not transformPaths:
+        return
+    if isinstance(transformPaths, str):
+        transformPaths = [transformPaths]
+
+    temporaryDirectory = os.path.abspath(ANTsPyTemporaryPath())
+    for transformPath in transformPaths:
+        try:
+            if os.path.isfile(transformPath) and os.path.abspath(os.path.dirname(transformPath)) == temporaryDirectory:
+                os.remove(transformPath)
+        except OSError as removeError:
+            logging.warning("Could not remove temporary transform file %s: %s" % (transformPath, removeError))
+
+
 def coarseReferenceVolumeNode(referenceVolumeNode, downsamplingFactor):
     """Create a temporary, empty volume node with the geometry of referenceVolumeNode but a coarser grid.
 
@@ -2179,56 +2240,62 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             initialTransform = self.convertTransformNodeToANTsFile(
                 existingTransformNode, fixedNode, displacementFieldDownsamplingFactor)
 
-        # If transformType is "None", only compute and save the initial transform without registration
-        if transformType == "None":
-            if initialTransform:
-                # For all transforms (including bspline), initialTransform is now a list of file paths
-                if forwardTransformNode:
-                    nodeFromANTSTransform(initialTransform[0], forwardTransformNode)
-                if transformedImageNode:
-                    warpedImage = ants.apply_transforms(fixed=fixedImage, moving=movingImage, transformlist=initialTransform)
-                    nodeFromANTSImage(warpedImage, transformedImageNode)
-                    slicer.util.setSliceViewerLayers(background = transformedImageNode)
-            else:
-                slicer.util.errorDisplay("Transform type is set to 'None' but no initial transform was specified.")
-            return
+        try:
+            # If transformType is "None", only compute and save the initial transform without registration
+            if transformType == "None":
+                if initialTransform:
+                    # For all transforms (including bspline), initialTransform is now a list of file paths
+                    if forwardTransformNode:
+                        nodeFromANTSTransform(initialTransform[0], forwardTransformNode)
+                    if transformedImageNode:
+                        warpedImage = ants.apply_transforms(fixed=fixedImage, moving=movingImage, transformlist=initialTransform)
+                        nodeFromANTSImage(warpedImage, transformedImageNode)
+                        slicer.util.setSliceViewerLayers(background = transformedImageNode)
+                else:
+                    slicer.util.errorDisplay("Transform type is set to 'None' but no initial transform was specified.")
+                return
 
-        # Perform full registration with initial transform.
-        # write_composite_transform=True is required, not incidental: ANTs treats an initial
-        # transform as stage 0, so with per-stage output 'fwdtransforms' holds several files
-        # and only the composite carries the complete fixed -> moving mapping in one file
-        # (see nodeFromANTSTransform and issue #33).
-        reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
+            # Perform full registration with initial transform.
+            # write_composite_transform=True is required, not incidental: ANTs treats an initial
+            # transform as stage 0, so with per-stage output 'fwdtransforms' holds several files
+            # and only the composite carries the complete fixed -> moving mapping in one file
+            # (see nodeFromANTSTransform and issue #33).
+            reg = ants.registration(fixed=fixedImage, moving=movingImage, type_of_transform=transformType, write_composite_transform=True, initial_transform=initialTransform)
 
-        if forwardTransformNode:
-            nodeFromANTSTransform(reg['fwdtransforms'], forwardTransformNode)
+            if forwardTransformNode:
+                nodeFromANTSTransform(reg['fwdtransforms'], forwardTransformNode)
 
-        if inverseTransformNode:
-            # ANTs only writes the inverse composite when every stage can be inverted. A
-            # displacement field, which is how a non-linear initial transform is passed in,
-            # has no analytic inverse, so the file is simply absent while antspyx still
-            # reports a path for it. Report that instead of leaving an empty output node.
-            inverseTransformPaths = reg['invtransforms']
-            if isinstance(inverseTransformPaths, str):
-                inverseTransformPaths = [inverseTransformPaths]
-            if inverseTransformPaths and os.path.isfile(inverseTransformPaths[0]):
-                nodeFromANTSTransform(inverseTransformPaths, inverseTransformNode)
-            else:
-                slicer.util.warningDisplay(
-                    "The inverse transform could not be computed because the initial transform is non-linear.\n\n"
-                    "ANTs writes an inverse only when every part of the registration can be inverted, and a "
-                    "non-linear initial transform is passed to ANTs as a displacement field, which cannot be "
-                    "inverted analytically. '%s' is left empty; the forward transform and the resampled image "
-                    "are unaffected.\n\n"
-                    "To obtain an inverse, use a linear initial transform, or invert the initial transform in "
-                    "Slicer and combine it with the inverse of a registration run without an initial transform."
-                    % inverseTransformNode.GetName()
-                )
+            if inverseTransformNode:
+                # ANTs only writes the inverse composite when every stage can be inverted. A
+                # displacement field, which is how a non-linear initial transform is passed in,
+                # has no analytic inverse, so the file is simply absent while antspyx still
+                # reports a path for it. Report that instead of leaving an empty output node.
+                inverseTransformPaths = reg['invtransforms']
+                if isinstance(inverseTransformPaths, str):
+                    inverseTransformPaths = [inverseTransformPaths]
+                if inverseTransformPaths and os.path.isfile(inverseTransformPaths[0]):
+                    nodeFromANTSTransform(inverseTransformPaths, inverseTransformNode)
+                else:
+                    slicer.util.warningDisplay(
+                        "The inverse transform could not be computed because the initial transform is non-linear.\n\n"
+                        "ANTs writes an inverse only when every part of the registration can be inverted, and a "
+                        "non-linear initial transform is passed to ANTs as a displacement field, which cannot be "
+                        "inverted analytically. '%s' is left empty; the forward transform and the resampled image "
+                        "are unaffected.\n\n"
+                        "To obtain an inverse, use a linear initial transform, or invert the initial transform in "
+                        "Slicer and combine it with the inverse of a registration run without an initial transform."
+                        % inverseTransformNode.GetName()
+                    )
 
-        if transformedImageNode:
-            nodeFromANTSImage(reg['warpedmovout'], transformedImageNode)
-            slicer.util.setSliceViewerLayers(background = transformedImageNode)
-    
+            if transformedImageNode:
+                nodeFromANTSImage(reg['warpedmovout'], transformedImageNode)
+                slicer.util.setSliceViewerLayers(background = transformedImageNode)
+        finally:
+            # The serialized initial transform has been read by ANTs and by the output nodes
+            # by now. A displacement field can be hundreds of MB, so it is not left behind.
+            removeTemporaryTransformFiles(initialTransform)
+
+
     def convertTransformNodeToANTsFile(self, transformNode, referenceVolumeNode=None, displacementFieldDownsamplingFactor=1.0):
         """Convert a Slicer transform node to an ANTs-compatible file and return the path.
 
@@ -2988,9 +3055,11 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
         
         logging.info("Starting label image registration")
         
-        # Keep track of temporary nodes to clean up later
+        # Keep track of temporary nodes and files to clean up later
         tempNodes = []
-        
+        initial_transform_files = None
+        composedTransformPaths = []
+
         try:
             # Convert segmentations to labelmaps if needed
             fixedLabelVolume = self._getLabelmapFromNode(fixedLabelNode, tempNodes)
@@ -3023,6 +3092,7 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 logging.info("Using existing transform as initial transform")
                 initial_transform = self._getTransformListFromNode(
                     existingTransformNode, fixedLabelVolume, displacementFieldDownsamplingFactor)
+                initial_transform_files = initial_transform
             
             # Prepare intensity images if provided
             fixedIntensityList = None
@@ -3050,11 +3120,17 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 verbose=True
             )
             
-            # Save outputs - result is a dict with 'fwdtransforms' and 'invtransforms' (lists of file paths)
+            # Save outputs - result is a dict with 'fwdtransforms' and 'invtransforms' (lists
+            # of file paths). label_image_registration has no write_composite_transform
+            # option, so it returns one file per stage - a warp plus the affine, and an
+            # initial transform adds one more - and the whole list has to be composed.
+            # Loading only the first file drops the rest of the mapping, which with an
+            # initial transform means loading the initial alignment and nothing else.
             if forwardTransformNode and len(result['fwdtransforms']) > 0:
-                # Load the first forward transform
-                nodeFromANTSTransform(result['fwdtransforms'][0], forwardTransformNode)
-            
+                composedForwardPath = composeANTsTransformList(result['fwdtransforms'], fixedLabel)
+                composedTransformPaths.append(composedForwardPath)
+                nodeFromANTSTransform(composedForwardPath, forwardTransformNode)
+
             if inverseTransformNode:
                 # ANTs writes an inverse only when every part of the registration can be
                 # inverted; a non-linear initial transform is passed as a displacement
@@ -3062,9 +3138,15 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
                 inverseTransformPaths = result['invtransforms']
                 if isinstance(inverseTransformPaths, str):
                     inverseTransformPaths = [inverseTransformPaths]
-                if inverseTransformPaths and os.path.isfile(inverseTransformPaths[0]):
-                    # Load the first inverse transform
-                    nodeFromANTSTransform(inverseTransformPaths[0], inverseTransformNode)
+                if inverseTransformPaths and all(os.path.isfile(path) for path in inverseTransformPaths):
+                    # ANTs returns the forward affine in the inverse list and expects it to
+                    # be inverted on use; only a matrix can be inverted this way. The
+                    # composed field covers the moving image, which is the domain of the
+                    # inverse mapping.
+                    whichtoinvert = [path.endswith(".mat") for path in inverseTransformPaths]
+                    composedInversePath = composeANTsTransformList(inverseTransformPaths, movingLabel, whichtoinvert)
+                    composedTransformPaths.append(composedInversePath)
+                    nodeFromANTSTransform(composedInversePath, inverseTransformNode)
                 else:
                     slicer.util.warningDisplay(
                         "ANTs did not produce an inverse transform, so '%s' is left empty. This happens when the "
@@ -3102,6 +3184,10 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             # Clean up temporary labelmap nodes created from segmentations
             for tempNode in tempNodes:
                 slicer.mrmlScene.RemoveNode(tempNode)
+            # The serialized and composed transforms have been read by ANTs and by the
+            # output nodes by now, and a displacement field can be hundreds of MB.
+            removeTemporaryTransformFiles(initial_transform_files)
+            removeTemporaryTransformFiles(composedTransformPaths)
     
     def _getLabelmapFromNode(self, node, tempNodes):
         """
