@@ -37,7 +37,15 @@ runs:
           Windows) slicer_os=win     ;;
           *) echo "unsupported runner: $RUNNER_OS" >&2; exit 1 ;;
         esac
-        echo "SLICER_URL=https://download.slicer.org/download?os=${slicer_os}&stability=${STABILITY}" >> "$GITHUB_ENV"
+        # The application calls its daily build "Preview", but the download service only
+        # accepts "nightly" for it -- "stability=preview" is answered with an HTTP 400
+        # and an HTML error page, which then fails much later as a corrupt archive.
+        case "$STABILITY" in
+          release)          stability=release ;;
+          preview|nightly)  stability=nightly ;;
+          *) echo "unknown stability: $STABILITY (expected release or preview)" >&2; exit 1 ;;
+        esac
+        echo "SLICER_URL=https://download.slicer.org/download?os=${slicer_os}&stability=${stability}" >> "$GITHUB_ENV"
         # Everything the script prints is mirrored here.  On Windows the app's
         # console output never reaches the shell, so the log is the only copy.
         echo "SLICER_CI_LOG=${RUNNER_TEMP}/slicer-ci.log" >> "$GITHUB_ENV"
@@ -53,7 +61,9 @@ runs:
         sudo apt-get install -y -qq --no-install-recommends xvfb libsm6 libxt6 libpulse-mainloop-glib0 \
           libxcb-icccm4 libxdamage1 libnss3 libqt5gui5 libxcomposite1 libxrandr2 libxcursor1 libxi6 \
           libasound2t64 libgssapi-krb5-2 libgomp1 libglu1-mesa
-        curl -sSL --retry 3 -o slicer.tar.gz "$SLICER_URL"
+        # --fail: without it curl saves an HTTP error page as slicer.tar.gz and the job
+        # fails later, and confusingly, inside tar instead of here.
+        curl -sSL --fail --retry 3 -o slicer.tar.gz "$SLICER_URL"
         mkdir -p "$HOME/slicer"
         tar xzf slicer.tar.gz -C "$HOME/slicer" --strip-components=1
         echo "SLICER_BIN=$HOME/slicer/Slicer" >> "$GITHUB_ENV"
@@ -67,7 +77,7 @@ runs:
         if [ "$(uname -m)" = "arm64" ]; then
           sudo softwareupdate --install-rosetta --agree-to-license || true
         fi
-        curl -sSL --retry 3 -o slicer.dmg "$SLICER_URL"
+        curl -sSL --fail --retry 3 -o slicer.dmg "$SLICER_URL"   # --fail: see the Linux step
         hdiutil attach -nobrowse -quiet -mountpoint /Volumes/SlicerCI slicer.dmg
         # The bundle is named after the version in preview builds, so find it rather than assume it.
         app="$(find /Volumes/SlicerCI -maxdepth 1 -name '*.app' -print -quit)"
