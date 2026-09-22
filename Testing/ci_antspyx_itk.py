@@ -1,28 +1,32 @@
-"""EXPERIMENT (throwaway branch): does the PyPI antspyx wheel still clash with Slicer's ITK?
+"""EXPERIMENT (throwaway branch): which package makes Slicer abort on Linux?
 
-Background.  Issue #29 / PR #30, November 2025: the PyPI antspyx wheel linked ITK 5.4.3
-while Slicer linked 5.4.4.post1, two different ITK builds ended up in one process, and
-Slicer aborted on Linux -- ELF resolves the duplicate symbols into one another, which
-macOS's two-level namespace does not.  The workaround was a locally built antspyx,
-linked against 5.4.4, served from a Box share.  That is still what the extension
-downloads on Linux today, unchanged since 2025-11-10.
+Issue #29 / PR #30, November 2025: Slicer aborted on Linux once this extension's
+dependencies were installed, reporting two ITK versions in one process.  The fix was a
+locally built antspyx, linked against Slicer's ITK 5.4.4, served from a Box share -- and
+that is still what the extension downloads on Linux, unchanged since 2025-11-10.
 
-Since then both sides moved and neither one landed where the other is:
+Two runs on 2026-09-22 say the story is not what it looks like:
 
-    Slicer 5.12.4          ITK 5.4.6
-    PyPI antspyx 0.6.2/3   ITK 5.4.5   (ANTsPy scripts/configure_ITK.sh)
-    the Box wheel          ITK 5.4.4   (per PR #30)
+* The production path (itk-ants + the Box antspyx) still aborts, on Slicer 5.12.4 AND
+  preview: every check passes, then `SlicerApp-real exit abnormally` during shutdown.
+* antspyx ALONE does not abort -- neither the Box wheel (ITK 5.4.4) nor the PyPI one
+  (ITK 5.4.5) -- although neither matches Slicer's 5.4.6.
 
-So the question is not "is there a prebuilt wheel" -- there has always been a
-manylinux_2_17 one -- but "which wheel, if either, survives in the same process as
-Slicer's ITK".  ANTSPYX_SOURCE picks which one this run installs:
+So a mismatched antspyx is survivable, and the Box wheel may be fixing nothing.  The
+remaining suspect is ``itk-ants``, which pip-installs the ``itk`` wheel: a THIRD ITK in
+the process.  This installs each combination on its own and reports which ones abort.
 
-    box   -- the production path, logic.installANTsPyX()
-    pypi  -- plain `pip install antspyx --no-deps`, the wheel the workaround replaced
+COMBO picks the combination:
 
-Then it does what actually crashed: ITK work on the Slicer side, ants work on the other,
-in one process.  A clash aborts the application, so the job dies and the log stops --
-that IS the result.  Reaching the summary line means the combination survived.
+    itkants        itk-ants only
+    box            the Box antspyx only (production path on Linux)
+    pypi           the PyPI antspyx only
+    itkants+box    both -- what a user actually ends up with today
+    itkants+pypi   both, with the PyPI wheel instead
+
+The abort happens during shutdown, after the checks have all passed, so the checks are
+not the result: the job's exit code is.  A job that reaches "[ci] ... checks passed" and
+then fails anyway is one where Slicer could not shut down cleanly.
 """
 
 import glob
@@ -35,19 +39,19 @@ import ci_common  # noqa: E402
 
 import slicer  # noqa: E402
 
-SOURCE = os.environ.get("ANTSPYX_SOURCE", "box")
+COMBO = os.environ.get("COMBO", "itkants+box")
 
-# The same dependency set the extension installs alongside antspyx, minus scipy: its
-# `scipy<1.16` pin would downgrade Slicer's own scipy.
+# The dependency set the extension installs alongside antspyx, minus scipy, whose
+# `scipy<1.16` pin would downgrade Slicer's own.
 ANTSPYX_DEPS = "pandas pyyaml statsmodels webcolors matplotlib scikit-learn"
 
 _ITK_VERSION = re.compile(rb"itk version (\d+\.\d+\.\d+(?:\.post\d+)?)")
 
 
 def itkVersionsIn(path):
-    """Every ITK version string baked into a binary, by scanning it for the literal
-    ITK itself prints ("itk version 5.4.6").  Cheaper and more portable here than
-    getting each library to report its own version through an API it may not expose."""
+    """Every ITK version baked into a binary, found by scanning it for the literal ITK
+    itself prints ("itk version 5.4.6") -- more portable here than asking each library
+    through an API it may not expose."""
     try:
         with open(path, "rb") as fp:
             return sorted({match.decode() for match in _ITK_VERSION.findall(fp.read())})
@@ -62,67 +66,59 @@ def reportItkVersions(label, patterns):
             versions = itkVersionsIn(path)
             if versions:
                 found[os.path.basename(path)] = versions
-    for name, versions in sorted(found.items()):
+    for name, versions in sorted(found.items())[:6]:
         ci_common.say(f"[ci]   {label}: {name} -> {', '.join(versions)}")
     allVersions = sorted({v for versions in found.values() for v in versions})
-    ci_common.say(f"[ci] {label} ITK: {', '.join(allVersions) or '(none found)'}")
+    ci_common.say(f"[ci] ITK in {label}: {', '.join(allVersions) or '(none)'}")
     return allVersions
 
 
+def packageDirectory(moduleName):
+    try:
+        module = __import__(moduleName)
+        return os.path.dirname(module.__file__)
+    except Exception:
+        return None
+
+
 def main():
-    ci_common.say(f"[ci] ANTSPYX_SOURCE={SOURCE}")
+    ci_common.say(f"[ci] COMBO={COMBO}")
     home = slicer.app.slicerHome
 
-    slicerItk = reportItkVersions("Slicer", [
-        os.path.join(home, "lib", "**", "*ITKCommon*"),
-        os.path.join(home, "**", "*ITKCommon*"),
-    ])
-    ci_common.record("Slicer's ITK version is detectable", bool(slicerItk),
-                     ", ".join(slicerItk))
+    versions = {"Slicer": reportItkVersions("Slicer", [
+        os.path.join(home, "lib", "**", "*ITKCommon*")])}
 
-    # --- install antspyx the way this variant is supposed to ------------------
-    if SOURCE == "box":
+    # --- install exactly what this combination calls for ----------------------
+    if "itkants" in COMBO:
+        import ITKANTsCommon
+        # confirm=False: the installer would otherwise wait on a modal dialog.
+        ITKANTsCommon.ITKANTsCommonLogic.installITK(confirm=False)
+        import itk  # noqa: F401
+        ci_common.record("itk-ants installs and imports", True)
+        versions["itk (pip)"] = reportItkVersions("itk (pip)", [
+            os.path.join(packageDirectory("itk") or "", "**", "*.so")])
+
+    if "box" in COMBO:
         import ANTsPyRegistration
-        logic = ANTsPyRegistration.ANTsPyRegistrationLogic()
-        try:
-            logic.installANTsPyX()
-            ci_common.record("antspyx installs (Box wheel, production path)", True)
-        except Exception as error:
-            ci_common.record("antspyx installs (Box wheel, production path)", False,
-                             f"{type(error).__name__}: {ci_common.firstLine(error)}")
-            return
-    else:
-        try:
-            slicer.util.pip_install("antspyx --no-deps")
-            slicer.util.pip_install(ANTSPYX_DEPS)
-            ci_common.record("antspyx installs (PyPI manylinux wheel)", True)
-        except Exception as error:
-            ci_common.record("antspyx installs (PyPI manylinux wheel)", False,
-                             f"{type(error).__name__}: {ci_common.firstLine(error)}")
-            return
+        ANTsPyRegistration.ANTsPyRegistrationLogic().installANTsPyX()
+        ci_common.record("antspyx installs (Box wheel)", True)
+    elif "pypi" in COMBO:
+        slicer.util.pip_install("antspyx --no-deps")
+        slicer.util.pip_install(ANTSPYX_DEPS)
+        ci_common.record("antspyx installs (PyPI wheel)", True)
 
-    try:
+    if "box" in COMBO or "pypi" in COMBO:
         import ants
         ci_common.record("antspyx imports", True, f"version {ants.__version__}")
-    except Exception as error:
-        ci_common.record("antspyx imports", False,
-                         f"{type(error).__name__}: {ci_common.firstLine(error)}")
-        return
+        versions["antspyx"] = reportItkVersions("antspyx", [
+            os.path.join(os.path.dirname(ants.__file__), "**", "*.so")])
 
-    antsItk = reportItkVersions("antspyx", [
-        os.path.join(os.path.dirname(ants.__file__), "**", "*.so"),
-        os.path.join(os.path.dirname(ants.__file__), "**", "*.dylib"),
-    ])
-    ci_common.record("antspyx's ITK version is detectable", bool(antsItk),
-                     ", ".join(antsItk))
-    matched = bool(slicerItk) and bool(antsItk) and set(slicerItk) == set(antsItk)
-    ci_common.say(f"[ci] ITK match: Slicer {slicerItk} vs antspyx {antsItk} -> "
-                  f"{'same' if matched else 'DIFFERENT'}")
+    distinct = sorted({v for found in versions.values() for v in found})
+    ci_common.say(f"[ci] ITK builds in this process: {len(distinct)} -> {', '.join(distinct)}")
+    for label, found in versions.items():
+        ci_common.say(f"[ci]   {label}: {', '.join(found) or '(none)'}")
 
-    # --- the part that actually crashed --------------------------------------
-    # Slicer-side ITK first (its image IO factories are what reported the clash), then
-    # ants in the same process, then Slicer-side ITK again.  If the two ITKs are
-    # incompatible the application aborts here and this script never reaches its end.
+    # --- exercise both sides in the one process -------------------------------
     import numpy as np
 
     volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode", "probe")
@@ -133,15 +129,16 @@ def main():
     ci_common.record("Slicer reads it back through ITK",
                      slicer.util.loadVolume(path) is not None)
 
-    ci_common.say("[ci] running an ants registration in the same process ...")
-    fixed = ants.from_numpy(np.random.default_rng(1).random((24, 24, 24)))
-    moving = ants.from_numpy(np.random.default_rng(2).random((24, 24, 24)))
-    result = ants.registration(fixed=fixed, moving=moving, type_of_transform="Rigid")
-    ci_common.record("ants.registration completes", "warpedmovout" in result,
-                     f"keys: {sorted(result)[:3]}")
+    if "box" in COMBO or "pypi" in COMBO:
+        import ants
+        fixed = ants.from_numpy(np.random.default_rng(1).random((24, 24, 24)))
+        moving = ants.from_numpy(np.random.default_rng(2).random((24, 24, 24)))
+        result = ants.registration(fixed=fixed, moving=moving, type_of_transform="Rigid")
+        ci_common.record("ants.registration completes", "warpedmovout" in result)
 
     ci_common.record("Slicer still does ITK IO afterwards",
                      slicer.util.loadVolume(path) is not None)
+    ci_common.say("[ci] work finished; whether this job passes now depends on shutdown")
 
 
-ci_common.run(main, f"antspyx-itk[{SOURCE}]")
+ci_common.run(main, f"itk-combo[{COMBO}]")

@@ -20,18 +20,19 @@ on:
 
 jobs:
   antspyx-itk:
-    name: Linux / antspyx from ${{ matrix.source }}
+    name: Linux / ${{ matrix.source }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        source: [box, pypi]   # box = the production path today; pypi = the wheel it replaced
+        # Each dependency on its own, then the two combinations a user can end up with.
+        source: [itkants, box, pypi, itkants+box, itkants+pypi]
     steps:
       - uses: actions/checkout@v4
-      - name: Select the wheel source
+      - name: Select the combination
         # Written to GITHUB_ENV so the Slicer process started by the action inherits it.
-        run: echo "ANTSPYX_SOURCE=${{ matrix.source }}" >> "$GITHUB_ENV"
+        run: echo "COMBO=${{ matrix.source }}" >> "$GITHUB_ENV"
       - uses: ./.github/actions/slicer
         with:
           stability: release
