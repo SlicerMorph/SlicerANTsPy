@@ -1,0 +1,73 @@
+name: Slicer smoke test
+
+# Loads this extension's modules in a real Slicer on Linux, macOS and Windows, against
+# both the current stable release and the preview build, on every pull request.
+#
+# What it is for: the modules are Python, so nothing is compiled and nothing here checks
+# that they still WORK -- it checks that they still LOAD.  That is the failure that is
+# hard to chase, because it depends on the operating system and on the Slicer version:
+# a renamed Slicer/VTK/Qt API, a Qt widget that exists in one platform's build and not
+# another's, a resource file that was renamed on a case-insensitive filesystem.
+#
+# The preview jobs are advisory (continue-on-error): they are the early warning that the
+# NEXT Slicer release will break us, and a broken preview build should not block a PR.
+#
+# Nothing here uses the network beyond downloading Slicer, so a PyPI outage cannot red
+# out a pull request.  Installing the runtime dependencies is tested by slicer-deps.yml.
+
+on:
+  pull_request:
+  push:
+    branches: [main, stable-5.10]
+  workflow_dispatch:
+
+concurrency:
+  # A new push to a PR makes the in-flight run obsolete; don't pay for both.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast, Slicer-free check that the CMakeLists.txt manifests still match the source
+  # tree.  Runs first and on one platform only: the answer is the same everywhere, and
+  # a missing manifest entry would otherwise be invisible until the extension ships.
+  manifest:
+    name: CMakeLists manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python Testing/check_module_manifest.py
+
+  load:
+    name: ${{ matrix.name }} / Slicer ${{ matrix.stability }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    # Advisory only for preview: report the failure, do not fail the check suite.
+    continue-on-error: ${{ matrix.stability == 'preview' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two dimensions -> six jobs, all in parallel.
+        stability: [release, preview]
+        os: [ubuntu-24.04, macos-latest, windows-latest]   # ubuntu pinned: the apt
+        # package names in the action are the 24.04 ones (libasound2t64).
+        include:
+          # Each of these matches an existing `os` value, so it only attaches a
+          # readable name to those two jobs rather than creating new combinations.
+          - os: ubuntu-24.04
+            name: Linux
+          - os: macos-latest
+            name: macOS
+          - os: windows-latest
+            name: Windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/slicer
+        with:
+          stability: ${{ matrix.stability }}
+          script: Testing/ci_load.py
+          module-paths: |
+            ITKANTsCommon
+            ANTsRegistration
