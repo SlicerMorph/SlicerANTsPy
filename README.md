@@ -2,6 +2,8 @@
 
 # SlicerANTsPy
 
+[![Slicer smoke test](https://github.com/SlicerMorph/SlicerANTsPy/actions/workflows/slicer-smoke.yml/badge.svg)](https://github.com/SlicerMorph/SlicerANTsPy/actions/workflows/slicer-smoke.yml)
+
 ## Advanced Normalization Tools (ANTs)
 [ANTs](https://github.com/ANTsX/ANTs) is a performant image registration library. An extension that exposes its core Registration functionality is available as part of the Slicer's extension catalog https://github.com/netstim/SlicerANTs
 
