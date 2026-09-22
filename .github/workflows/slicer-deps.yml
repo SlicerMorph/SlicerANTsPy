@@ -1,52 +1,41 @@
 name: Slicer dependency install
 
-# Installs this extension's runtime dependencies (itk-ants, antspyx and friends) into a
-# real Slicer on Linux, macOS and Windows, by calling the extension's OWN installer
-# functions, and then imports them.
+# EXPERIMENT BRANCH -- do not merge.
 #
-# Why this is separate from slicer-smoke.yml, and why it runs on a schedule:
+# This is the experiment/antspyx-itk-match version of the weekly dependency workflow,
+# temporarily repurposed to answer one question: does the PyPI antspyx wheel still clash
+# with Slicer's ITK on Linux, and does the Box wheel we substituted for it still match?
 #
-#  * It is slow and it downloads hundreds of megabytes.
-#  * It depends on services nobody here controls -- PyPI, and the Box share the Linux
-#    antspyx wheel comes from.  An outage there is not a reason to block a pull request.
-#  * The things it catches do not arrive with a commit.  They arrive when PyPI stops
-#    publishing a wheel for our platform, when Slicer's bundled Python version moves
-#    (the Linux wheel filename hard-codes cp312), or when a transitive dependency
-#    changes its pins.  A weekly run finds those; a per-PR run would only repeat them.
+# It reuses this filename on purpose.  `workflow_dispatch` only offers workflows that
+# exist on the default branch, but dispatching with --ref runs THIS branch's copy -- so
+# the experiment needs no new file on main and nothing to clean up there afterwards.
 #
-# Run it by hand from the Actions tab (Run workflow) whenever the install code changes.
+# Linux only: this is an ELF symbol-resolution problem and it has never reproduced on
+# macOS or Windows, where production already uses the PyPI wheel without trouble.
+#
+# The real version of this file is on main.
 
 on:
-  schedule:
-    - cron: '17 6 * * 1'   # Mondays, 06:17 UTC
   workflow_dispatch:
 
 jobs:
-  deps:
-    name: ${{ matrix.name }} / Slicer ${{ matrix.stability }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60    # the wheels are large and the runners are not fast
-    # Advisory on preview: an early warning that the next Slicer release changes
-    # something (its Python version, its bundled scipy) that our installers assume.
-    continue-on-error: ${{ matrix.stability == 'preview' }}
+  antspyx-itk:
+    name: Linux / antspyx from ${{ matrix.source }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        stability: [release, preview]
-        os: [ubuntu-24.04, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-24.04
-            name: Linux
-          - os: macos-latest
-            name: macOS
-          - os: windows-latest
-            name: Windows
+        source: [box, pypi]   # box = the production path today; pypi = the wheel it replaced
     steps:
       - uses: actions/checkout@v4
+      - name: Select the wheel source
+        # Written to GITHUB_ENV so the Slicer process started by the action inherits it.
+        run: echo "ANTSPYX_SOURCE=${{ matrix.source }}" >> "$GITHUB_ENV"
       - uses: ./.github/actions/slicer
         with:
-          stability: ${{ matrix.stability }}
-          script: Testing/ci_deps.py
+          stability: release
+          script: Testing/ci_antspyx_itk.py
           module-paths: |
             ITKANTsCommon
             ANTsRegistration
