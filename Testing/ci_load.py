@@ -58,7 +58,7 @@ def main():
             # The module factory drops a scripted module whose import raised; the
             # traceback is in the application log above this line.
             ci_common.record(f"{name} loaded", False,
-                             f"not registered with Slicer ({str(error).splitlines()[0]})")
+                             f"not registered with Slicer ({ci_common.firstLine(error)})")
             continue
         ci_common.record(f"{name} loaded", True, loaded.title or name)
 
@@ -81,7 +81,7 @@ def main():
                                  else ("" if ok else "widgetRepresentation() returned None"))
         except Exception as error:
             ci_common.record(f"{name} widget builds", False,
-                             f"{type(error).__name__}: {str(error).splitlines()[0]}")
+                             f"{type(error).__name__}: {ci_common.firstLine(error)}")
 
 
 ci_common.run(main, "load")

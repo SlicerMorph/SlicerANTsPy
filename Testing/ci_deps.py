@@ -44,7 +44,7 @@ def timed(step):
         return True, f"{time.time() - started:.0f}s"
     except Exception as error:
         return False, f"after {time.time() - started:.0f}s: " \
-                      f"{type(error).__name__}: {str(error).splitlines()[0]}"
+                      f"{type(error).__name__}: {ci_common.firstLine(error)}"
 
 
 def main():
@@ -91,7 +91,7 @@ def main():
                          f"scipy {scipy.__version__}")
     except Exception as error:
         ci_common.record("Slicer's scipy/numpy still import", False,
-                         f"{type(error).__name__}: {str(error).splitlines()[0]}")
+                         f"{type(error).__name__}: {ci_common.firstLine(error)}")
 
 
 ci_common.run(main, "deps")

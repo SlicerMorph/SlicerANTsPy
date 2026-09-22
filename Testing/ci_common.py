@@ -23,6 +23,20 @@ LOG_PATH = os.environ.get("SLICER_CI_LOG")
 _results = []
 
 
+def firstLine(value):
+    """The first line of an exception's message, for a one-line PASS/FAIL detail.
+
+    Plenty of exceptions carry no message at all -- ``raise RuntimeError()``, a bare
+    ``assert``, much of what the Qt bindings raise -- and ``"".splitlines()`` is ``[]``,
+    so taking ``[0]`` off it is an IndexError thrown while reporting someone else's
+    failure.  Inside ``collectedExceptions`` that would be silent and backwards: the
+    swallowed exception this module exists to notice would go unrecorded and the check
+    would pass.
+    """
+    lines = str(value).strip().splitlines()
+    return lines[0] if lines else f"(no message: {type(value).__name__})"
+
+
 @contextlib.contextmanager
 def collectedExceptions():
     """Collect exceptions that Slicer catches on the C++ side instead of re-raising.
@@ -41,7 +55,7 @@ def collectedExceptions():
     original = sys.excepthook
 
     def hook(exceptionType, value, tb):
-        collected.append(f"{exceptionType.__name__}: {str(value).strip().splitlines()[0]}")
+        collected.append(f"{exceptionType.__name__}: {firstLine(value)}")
         original(exceptionType, value, tb)
 
     sys.excepthook = hook
