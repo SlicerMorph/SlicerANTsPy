@@ -31,7 +31,16 @@ from slicer import (
 from ANTsPyRegistrationLib.Widgets.tables import StagesTable, MetricsTable, LevelsTable
 
 
-ANTsPyTransformTypes  = [ 
+# The antspyx release this extension installs, on every platform.  Pinned rather than
+# left open so that what users get is a version we have actually exercised: 0.6.3 is
+# verified by Testing/ci_deps.py on Linux, macOS and Windows against both Slicer stable
+# and preview -- install, import, and a real antsRegistrationSyNQuick[s] registration.
+# Before raising it, run that job (Actions -> "Slicer dependency install" -> Run
+# workflow) against the new version and check all six jobs.
+ANTSPYX_VERSION = "0.6.3"
+
+
+ANTsPyTransformTypes  = [
     "Rigid",
     "Similarity",
     "Translation",
@@ -2871,35 +2880,13 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
         try:
             import ants
         except:
-            import platform
             # antspyx declares scipy<1.16, but Slicer bundles scipy>=1.16.
             # Installing with deps would downgrade scipy and break Slicer.
             # So we install antspyx without deps first, then add only the
             # missing deps explicitly (omitting scipy).
             antspyx_deps = 'pandas pyyaml statsmodels webcolors matplotlib scikit-learn'
-            if platform.system() == 'Linux':
-                import urllib.request
-                import tempfile
-                
-                # Download the wheel file from Box
-                download_url = 'https://app.box.com/shared/static/mu1gy26t80oopbtv3mndl5yveb6s4431.whl'
-                temp_dir = tempfile.gettempdir()
-                whl_filename = 'antspyx-0.6.2-cp312-cp312-linux_x86_64.whl'
-                whl_path = os.path.join(temp_dir, whl_filename)
-                
-                logging.info(f"Downloading antspyx wheel from {download_url}")
-                urllib.request.urlretrieve(download_url, whl_path)
-                logging.info(f"Downloaded to {whl_path}")
-                
-                slicer.util.pip_install(f'{whl_path} --no-deps')
-                
-                # Clean up the downloaded file
-                try:
-                    os.remove(whl_path)
-                except:
-                    pass
-            else:
-                slicer.util.pip_install('antspyx --no-deps')
+            logging.info(f"Installing antspyx {ANTSPYX_VERSION} from PyPI")
+            slicer.util.pip_install(f'antspyx=={ANTSPYX_VERSION} --no-deps')
             slicer.util.pip_install(antspyx_deps)
 
 
