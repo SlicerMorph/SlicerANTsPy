@@ -49,12 +49,32 @@ def timed(step):
                       f"{type(error).__name__}: {ci_common.firstLine(error)}"
 
 
-def gaussianBlob(shape, center, sigma=8.0):
-    """A smooth blob, so the registration below has something real to solve."""
+SHAPE = (48, 48, 48)
+TRANSLATION = (0.0, 4.0, 3.0)   # voxels; what the registration has to recover
+
+
+def texturedVolume(seed=0, shift=None):
+    """Band-limited noise: a well-posed registration target.
+
+    The first version of this check used a single Gaussian blob, and it was a bad
+    test.  A smooth, symmetric blob gives the similarity metric almost no gradient
+    to follow, so the result is decided by numerical noise: with identical input,
+    two platforms improved alignment and four made it worse, each in about a second.
+    That measured the test, not the wheel.
+
+    Smoothed random noise has texture everywhere, so recovering a pure translation
+    is unambiguous and every correct build should manage it.
+    """
     import numpy as np
-    k, j, i = np.ogrid[:shape[0], :shape[1], :shape[2]]
-    squaredDistance = ((k - center[0]) ** 2 + (j - center[1]) ** 2 + (i - center[2]) ** 2)
-    return np.exp(-squaredDistance / (2.0 * sigma ** 2)).astype("float32")
+    from scipy import ndimage
+
+    volume = ndimage.gaussian_filter(
+        np.random.default_rng(seed).random(SHAPE).astype("float32"), sigma=2.0)
+    volume -= volume.min()
+    volume /= max(float(volume.max()), 1e-8)
+    if shift is not None:
+        volume = ndimage.shift(volume, shift, order=3, mode="nearest")
+    return volume.astype("float32")
 
 
 def runRegistration():
@@ -71,9 +91,8 @@ def runRegistration():
     import ants
     import numpy as np
 
-    shape = (48, 48, 48)
-    fixedArray = gaussianBlob(shape, (24, 24, 24))
-    movingArray = gaussianBlob(shape, (24, 29, 20))
+    fixedArray = texturedVolume()
+    movingArray = texturedVolume(shift=TRANSLATION)
 
     result = ants.registration(
         fixed=ants.from_numpy(fixedArray),
@@ -84,10 +103,14 @@ def runRegistration():
     before = float(np.mean((fixedArray - movingArray) ** 2))
     after = float(np.mean((fixedArray - warpedArray) ** 2))
     ci_common.say(f"[ci] mean squared difference {before:.5g} -> {after:.5g} "
-                  f"({len(result['fwdtransforms'])} forward transforms)")
-    if not after < before:
+                  f"({before / max(after, 1e-12):.1f}x better, "
+                  f"{len(result['fwdtransforms'])} forward transforms)")
+    # A generous margin: recovering a pure translation from a textured image should
+    # remove most of the difference, so this fails only on a genuinely broken build,
+    # not on ordinary numerical variation between platforms.
+    if not after < 0.5 * before:
         raise RuntimeError(
-            f"registration did not improve alignment: {before:.5g} -> {after:.5g}")
+            f"registration barely moved the image: {before:.5g} -> {after:.5g}")
 
 
 def main():
