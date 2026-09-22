@@ -27,7 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         # Each dependency on its own, then the two combinations a user can end up with.
-        source: [itkants, box, pypi, itkants+box, itkants+pypi]
+        # Round 1 showed none of these abort.  The real script differs by one line:
+        # it touches itk.ANTSRegistration, which is what actually loads the itk-ants
+        # library.  "touch" adds that.
+        source: [itkants+touch, itkants+touch+box, itkants+touch+pypi]
     steps:
       - uses: actions/checkout@v4
       - name: Select the combination

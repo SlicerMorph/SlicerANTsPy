@@ -95,6 +95,12 @@ def main():
         ITKANTsCommon.ITKANTsCommonLogic.installITK(confirm=False)
         import itk  # noqa: F401
         ci_common.record("itk-ants installs and imports", True)
+        if "touch" in COMBO:
+            # What preloadITK() and ci_deps.py do, and what the earlier round left out:
+            # `import itk` is lazy, so the itk-ants extension module -- and the ITK build
+            # inside it -- is only pulled into the process when an attribute forces it.
+            itk.ANTSRegistration
+            ci_common.record("itk-ants shared library loads", True)
         versions["itk (pip)"] = reportItkVersions("itk (pip)", [
             os.path.join(packageDirectory("itk") or "", "**", "*.so")])
 
