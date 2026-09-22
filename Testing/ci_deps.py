@@ -18,8 +18,10 @@ anyone here ever sees.  Specifically:
   disappear, and the filename silently assumes Slicer's Python stays at 3.12.
 
 So this calls the extension's own installer functions -- not a hand-written pip
-command -- and then actually imports the packages, because a wheel that installs
-and cannot be imported is the failure mode that hard-coded filename produces.
+command -- then imports the packages, because a wheel that installs and cannot be
+imported is a real failure mode, and finally runs an actual
+``antsRegistrationSyNQuick[s]`` registration, because a wheel that imports and
+cannot register is another one.
 
 This job touches the network and downloads hundreds of megabytes, which is why it
 runs on a schedule rather than on every pull request: a PyPI or Box outage should
@@ -45,6 +47,47 @@ def timed(step):
     except Exception as error:
         return False, f"after {time.time() - started:.0f}s: " \
                       f"{type(error).__name__}: {ci_common.firstLine(error)}"
+
+
+def gaussianBlob(shape, center, sigma=8.0):
+    """A smooth blob, so the registration below has something real to solve."""
+    import numpy as np
+    k, j, i = np.ogrid[:shape[0], :shape[1], :shape[2]]
+    squaredDistance = ((k - center[0]) ** 2 + (j - center[1]) ** 2 + (i - center[2]) ** 2)
+    return np.exp(-squaredDistance / (2.0 * sigma ** 2)).astype("float32")
+
+
+def runRegistration():
+    """Register a displaced blob onto a fixed one with antsRegistrationSyNQuick[s].
+
+    Installing and importing antspyx only proves the wheel is present and loadable.
+    This runs the deformable pipeline users actually run -- rigid, then affine, then
+    SyN -- which is what exercises the compiled ANTs code, the ITK inside it, and the
+    threading, in the same process as Slicer.  Whether the registration is any good is
+    not the question; that it completes and moves the moving image toward the fixed one
+    is, so the check is that the mean squared difference goes down.  A registration that
+    silently makes alignment worse is a broken build, not a tuning problem.
+    """
+    import ants
+    import numpy as np
+
+    shape = (48, 48, 48)
+    fixedArray = gaussianBlob(shape, (24, 24, 24))
+    movingArray = gaussianBlob(shape, (24, 29, 20))
+
+    result = ants.registration(
+        fixed=ants.from_numpy(fixedArray),
+        moving=ants.from_numpy(movingArray),
+        type_of_transform="antsRegistrationSyNQuick[s]")
+
+    warpedArray = result["warpedmovout"].numpy()
+    before = float(np.mean((fixedArray - movingArray) ** 2))
+    after = float(np.mean((fixedArray - warpedArray) ** 2))
+    ci_common.say(f"[ci] mean squared difference {before:.5g} -> {after:.5g} "
+                  f"({len(result['fwdtransforms'])} forward transforms)")
+    if not after < before:
+        raise RuntimeError(
+            f"registration did not improve alignment: {before:.5g} -> {after:.5g}")
 
 
 def main():
@@ -76,6 +119,10 @@ def main():
             say(f"[ci] antspyx version: {ants.__version__}")
         ok, detail = timed(importAnts)
         ci_common.record("antspyx imports", ok, detail)
+
+    if ok:
+        ok, detail = timed(runRegistration)
+        ci_common.record("antsRegistrationSyNQuick[s] runs", ok, detail)
 
     # --- Slicer must still be usable afterwards ------------------------------
     # antspyx pins scipy<1.16 while Slicer bundles a newer one; the installer
