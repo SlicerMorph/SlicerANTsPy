@@ -97,6 +97,7 @@ def run(main, tag):
     say(f"[ci] {tag}: platform={sys.platform} slicer={slicer.app.applicationVersion} "
         f"python={sys.version.split()[0]}")
     exitCode = 1
+    verdict = "FAIL (script did not finish)"
     try:
         main()
         failed = [name for name, ok, _ in _results if not ok]
@@ -104,8 +105,21 @@ def run(main, tag):
             + (f"; FAILED: {', '.join(failed)}" if failed else ""))
         # No checks at all means the script died before testing anything: also a failure.
         exitCode = 1 if (failed or not _results) else 0
+        verdict = "PASS" if exitCode == 0 else f"FAIL ({', '.join(failed) or 'no checks ran'})"
     except Exception:
         say("[ci] FAIL  unexpected error:\n" + traceback.format_exc())
+        verdict = "FAIL (unexpected error)"
     finally:
+        # The workflow judges the run on THIS line, not on the application's exit code.
+        # Slicer in --testing mode exits non-zero if any Python traceback was logged
+        # during the session, including ones a module handled and ones that are the
+        # expected consequence of testing mode itself -- pip_ensure refuses to install
+        # under --testing, so a module that fetches a dependency in setup() always
+        # leaves a traceback behind.  The exit code therefore cannot distinguish "a
+        # check failed" from "something printed a traceback".  This line can.
+        #
+        # A crash or a hang truncates the log before this is written, so a missing
+        # verdict is a failure too; only a crash AFTER it is reported passes.
+        say(f"[ci] VERDICT: {verdict}")
         sys.stdout.flush()
         slicer.util.exit(exitCode)

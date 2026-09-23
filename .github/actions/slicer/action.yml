@@ -17,6 +17,14 @@ inputs:
       Module directories to load, one per line, relative to the checkout root.
       Each becomes an --additional-module-paths argument.
     required: true
+  main-window:
+    description: >
+      "true" to start Slicer with its main window, "false" for --no-main-window.
+      Modules that touch the layout manager or the main window in setup() need it:
+      without one, slicer.app.layoutManager() is None and their setup() raises,
+      which looks like a broken module but is only a missing window.
+    required: false
+    default: "false"
   timeout-seconds:
     description: Kill Slicer if the script has not finished by then.
     required: false
@@ -109,8 +117,12 @@ runs:
         MODULE_PATHS: ${{ inputs.module-paths }}
         SCRIPT: ${{ inputs.script }}
         TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        MAIN_WINDOW: ${{ inputs.main-window }}
       run: |
         args=()
+        if [ "$MAIN_WINDOW" != "true" ]; then
+          args+=( --no-main-window )
+        fi
         while IFS= read -r path; do
           [ -n "$path" ] || continue
           args+=( --additional-module-paths "$GITHUB_WORKSPACE/$path" )
@@ -129,9 +141,14 @@ runs:
 
         # --testing makes the app take the non-interactive branch of any confirmation
         # prompt instead of waiting forever for a click.
+        set +e
         "${launcher[@]}" \
-          "$SLICER_BIN" --no-splash --no-main-window --testing \
+          "$SLICER_BIN" --no-splash --testing \
           "${args[@]}" --python-script "$GITHUB_WORKSPACE/$SCRIPT"
+        appStatus=$?
+        set -e
+        echo "Slicer exit code: $appStatus"
+        "$GITHUB_ACTION_PATH/verdict.sh" "$SLICER_CI_LOG"
 
     - name: Run ${{ inputs.script }} in Slicer (${{ inputs.stability }})
       if: runner.os == 'Windows'
@@ -140,9 +157,11 @@ runs:
         MODULE_PATHS: ${{ inputs.module-paths }}
         SCRIPT: ${{ inputs.script }}
         TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        MAIN_WINDOW: ${{ inputs.main-window }}
       run: |
         # NB: not $args -- that is an automatic PowerShell variable.
-        $slicerArgs = @('--launcher-no-splash', '--no-splash', '--no-main-window', '--testing')
+        $slicerArgs = @('--launcher-no-splash', '--no-splash', '--testing')
+        if ($env:MAIN_WINDOW -ne 'true') { $slicerArgs += '--no-main-window' }
         foreach ($path in ($env:MODULE_PATHS -split "`n")) {
           $path = $path.Trim()
           if ($path) {
@@ -152,15 +171,38 @@ runs:
         $slicerArgs += @('--python-script', (Join-Path $env:GITHUB_WORKSPACE $env:SCRIPT))
 
         # Slicer.exe is a GUI-subsystem launcher: it returns immediately and its console
-        # output never reaches this shell.  Wait for it explicitly, then print the log the
-        # script wrote, and report the launcher's exit code (which is the app's).
-        # There is no per-process timeout here; the job's timeout-minutes is the backstop.
-        $process = Start-Process -Wait -PassThru -NoNewWindow -FilePath $env:SLICER_BIN -ArgumentList $slicerArgs
-        if (Test-Path $env:SLICER_CI_LOG) {
-          Get-Content $env:SLICER_CI_LOG
-        } else {
-          Write-Host "(no log written - Slicer exited before the script ran)"
-          exit 1
+        # output never reaches this shell, so wait for it explicitly and read the log.
+        #
+        # Do not wait for a CLEAN exit, though.  With a main window on a runner with no
+        # real GPU, Slicer can finish the script and then hang in OpenGL teardown
+        # ("composeAndFlush: makeCurrent() failed"), which costs the job its entire
+        # timeout for a run that already passed.  The verdict line is what decides the
+        # result, so once it appears the app has done everything we need: allow a short
+        # grace period for it to quit on its own, then stop waiting and kill it.
+        $process = Start-Process -PassThru -NoNewWindow -FilePath $env:SLICER_BIN -ArgumentList $slicerArgs
+        $deadline = (Get-Date).AddSeconds([int]$env:TIMEOUT_SECONDS)
+        $graceUntil = $null
+        while (-not $process.HasExited) {
+          $now = Get-Date
+          if ($now -gt $deadline) {
+            Write-Host "Slicer exceeded $env:TIMEOUT_SECONDS s; stopping it."
+            break
+          }
+          if (-not $graceUntil -and (Test-Path $env:SLICER_CI_LOG) -and
+              (Select-String -Path $env:SLICER_CI_LOG -Pattern '^\[ci\] VERDICT:' -Quiet)) {
+            $graceUntil = $now.AddSeconds(60)
+            Write-Host "Script finished; waiting up to 60s for Slicer to exit."
+          }
+          if ($graceUntil -and $now -gt $graceUntil) {
+            Write-Host "Slicer did not exit after reporting its verdict; stopping it."
+            break
+          }
+          Start-Sleep -Seconds 2
         }
-        Write-Host "launcher exit code: $($process.ExitCode)"
-        exit $process.ExitCode
+        if (-not $process.HasExited) {
+          try { Stop-Process -Id $process.Id -Force -ErrorAction Stop } catch { Write-Host $_ }
+        } else {
+          Write-Host "launcher exit code: $($process.ExitCode)"
+        }
+        bash "$env:GITHUB_ACTION_PATH/verdict.sh" "$env:SLICER_CI_LOG"
+        exit $LASTEXITCODE

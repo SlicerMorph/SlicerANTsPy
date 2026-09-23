@@ -43,11 +43,22 @@ jobs:
             name: Windows
     steps:
       - uses: actions/checkout@v4
+      # Derived from the CMakeLists rather than listed here, so adding or removing a
+      # module does not need a matching edit to this file.
+      - name: Collect module directories
+        id: modules
+        shell: bash
+        run: |
+          {
+            echo 'paths<<MODULE_PATHS_EOF'
+            bash Testing/module_paths.sh
+            echo 'MODULE_PATHS_EOF'
+          } >> "$GITHUB_OUTPUT"
+          echo "Modules: $(bash Testing/module_paths.sh | tr '\n' ' ')"
+
       - uses: ./.github/actions/slicer
         with:
           stability: ${{ matrix.stability }}
           script: Testing/ci_deps.py
-          module-paths: |
-            ITKANTsCommon
-            ANTsRegistration
+          module-paths: ${{ steps.modules.outputs.paths }}
           timeout-seconds: "3000"
