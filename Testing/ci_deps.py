@@ -10,20 +10,21 @@ anyone here ever sees.  Specifically:
 
 * ``ITKANTsCommonLogic.installITK`` installs ``itk-ants`` from PyPI, which must
   publish a wheel for this platform AND this Python version.
-* ``ANTsPyRegistrationLogic.installANTsPyX`` installs ``antspyx`` with
+* ``ANTsPyRegistrationLogic.installANTsPyX`` installs a pinned ``antspyx`` with
   ``--no-deps`` (its scipy pin would otherwise downgrade Slicer's scipy and break
-  the application), then adds the remaining dependencies by hand.  On Linux there
-  is no usable PyPI wheel, so it downloads one from a fixed Box share whose
-  filename hard-codes ``cp312`` -- that URL is a third-party dependency that can
-  disappear, and the filename silently assumes Slicer's Python stays at 3.12.
+  the application), then adds the remaining dependencies by hand.  PyPI must carry
+  a wheel for this platform and this Python at that exact version, which is what
+  makes it worth checking on a schedule rather than trusting.
 
 So this calls the extension's own installer functions -- not a hand-written pip
-command -- and then actually imports the packages, because a wheel that installs
-and cannot be imported is the failure mode that hard-coded filename produces.
+command -- then imports the packages, because a wheel that installs and cannot be
+imported is a real failure mode, and finally runs an actual
+``antsRegistrationSyNQuick[s]`` registration, because a wheel that imports and
+cannot register is another one.
 
 This job touches the network and downloads hundreds of megabytes, which is why it
-runs on a schedule rather than on every pull request: a PyPI or Box outage should
-not red out someone's PR.
+runs on a schedule rather than on every pull request: a PyPI outage should not red
+out someone's PR.
 """
 
 import os
@@ -45,6 +46,40 @@ def timed(step):
     except Exception as error:
         return False, f"after {time.time() - started:.0f}s: " \
                       f"{type(error).__name__}: {ci_common.firstLine(error)}"
+
+
+def runRegistration():
+    """Run antsRegistrationSyNQuick[s] once, to prove the compiled ANTs code works.
+
+    Installing and importing antspyx shows the wheel is present and loadable; it does
+    not show that the compiled code underneath runs.  This registers a small volume
+    against a shifted copy of itself, which exercises the deformable pipeline -- rigid,
+    then affine, then SyN -- in the same process as Slicer.
+
+    It deliberately does NOT judge the registration.  Whether the result is any good is
+    a question about ANTs and about the images, not about whether the library works,
+    and this job only answers the latter.  Completing and returning a warped image and
+    transforms is the whole check.
+    """
+    import ants
+    import numpy as np
+    from scipy import ndimage
+
+    volume = ndimage.gaussian_filter(
+        np.random.default_rng(0).random((48, 48, 48)).astype("float32"), sigma=2.0)
+    shifted = ndimage.shift(volume, (0.0, 5.0, 4.0), order=3, mode="nearest")
+
+    result = ants.registration(
+        fixed=ants.from_numpy(volume),
+        moving=ants.from_numpy(shifted.astype("float32")),
+        type_of_transform="antsRegistrationSyNQuick[s]")
+
+    transforms = result.get("fwdtransforms") or []
+    ci_common.say(f"[ci] registration returned {len(transforms)} forward transforms")
+    if "warpedmovout" not in result or not transforms:
+        raise RuntimeError(f"registration returned no transforms: keys {sorted(result)}")
+    if result["warpedmovout"].numpy().shape != volume.shape:
+        raise RuntimeError("warped output has the wrong shape")
 
 
 def main():
@@ -76,6 +111,10 @@ def main():
             say(f"[ci] antspyx version: {ants.__version__}")
         ok, detail = timed(importAnts)
         ci_common.record("antspyx imports", ok, detail)
+
+    if ok:
+        ok, detail = timed(runRegistration)
+        ci_common.record("antsRegistrationSyNQuick[s] runs", ok, detail)
 
     # --- Slicer must still be usable afterwards ------------------------------
     # antspyx pins scipy<1.16 while Slicer bundles a newer one; the installer

@@ -7,12 +7,12 @@ name: Slicer dependency install
 # Why this is separate from slicer-smoke.yml, and why it runs on a schedule:
 #
 #  * It is slow and it downloads hundreds of megabytes.
-#  * It depends on services nobody here controls -- PyPI, and the Box share the Linux
-#    antspyx wheel comes from.  An outage there is not a reason to block a pull request.
+#  * It depends on PyPI, which nobody here controls.  An outage there is not a reason
+#    to block a pull request.
 #  * The things it catches do not arrive with a commit.  They arrive when PyPI stops
-#    publishing a wheel for our platform, when Slicer's bundled Python version moves
-#    (the Linux wheel filename hard-codes cp312), or when a transitive dependency
-#    changes its pins.  A weekly run finds those; a per-PR run would only repeat them.
+#    publishing a wheel for our platform or our Python version, when Slicer's bundled
+#    Python moves, or when a transitive dependency changes its pins.  A weekly run
+#    finds those; a per-PR run would only repeat them.
 #
 # Run it by hand from the Actions tab (Run workflow) whenever the install code changes.
 
