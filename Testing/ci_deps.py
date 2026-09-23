@@ -10,12 +10,11 @@ anyone here ever sees.  Specifically:
 
 * ``ITKANTsCommonLogic.installITK`` installs ``itk-ants`` from PyPI, which must
   publish a wheel for this platform AND this Python version.
-* ``ANTsPyRegistrationLogic.installANTsPyX`` installs ``antspyx`` with
+* ``ANTsPyRegistrationLogic.installANTsPyX`` installs a pinned ``antspyx`` with
   ``--no-deps`` (its scipy pin would otherwise downgrade Slicer's scipy and break
-  the application), then adds the remaining dependencies by hand.  On Linux there
-  is no usable PyPI wheel, so it downloads one from a fixed Box share whose
-  filename hard-codes ``cp312`` -- that URL is a third-party dependency that can
-  disappear, and the filename silently assumes Slicer's Python stays at 3.12.
+  the application), then adds the remaining dependencies by hand.  PyPI must carry
+  a wheel for this platform and this Python at that exact version, which is what
+  makes it worth checking on a schedule rather than trusting.
 
 So this calls the extension's own installer functions -- not a hand-written pip
 command -- then imports the packages, because a wheel that installs and cannot be
@@ -24,8 +23,8 @@ imported is a real failure mode, and finally runs an actual
 cannot register is another one.
 
 This job touches the network and downloads hundreds of megabytes, which is why it
-runs on a schedule rather than on every pull request: a PyPI or Box outage should
-not red out someone's PR.
+runs on a schedule rather than on every pull request: a PyPI outage should not red
+out someone's PR.
 """
 
 import os
