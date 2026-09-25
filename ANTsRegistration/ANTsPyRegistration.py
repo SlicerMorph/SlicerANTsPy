@@ -379,6 +379,10 @@ def matchCovariatesToPaths(df, pathList):
     if unmatched:
         raise ValueError(
             "No row of the covariates table matches these files (by ID): " + ", ".join(unmatched))
+    reused = sorted({ids[row] for row in rowOrder if rowOrder.count(row) > 1})
+    if reused:
+        raise ValueError(
+            "These IDs match more than one input file; check the filename pattern: " + ", ".join(reused))
 
     return df.iloc[rowOrder].drop(columns=['ID']).reset_index(drop=True)
 
