@@ -1222,6 +1222,19 @@
            <widget class="QComboBox" name="qValueComboBox"/>
           </item>
           <item row="4" column="0" colspan="2">
+           <widget class="QCheckBox" name="fdrCheckBox">
+            <property name="toolTip">
+             <string>Checked: a voxel is significant when its FDR-corrected q-value is below 0.05. Unchecked: when its uncorrected p-value is below 0.05. With many voxels, the uncorrected test finds significant voxels even for groups that do not differ.</string>
+            </property>
+            <property name="text">
+             <string>Apply FDR correction (q &lt; 0.05; unchecked: uncorrected p &lt; 0.05)</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
            <widget class="QPushButton" name="generateImageButton">
             <property name="text">
              <string>Generate Output Images</string>
@@ -1248,7 +1261,10 @@
           <item row="0" column="0">
            <widget class="QLabel" name="label_29">
             <property name="text">
-             <string>Q Values Image</string>
+             <string>Effect Image</string>
+            </property>
+            <property name="toolTip">
+             <string>Coefficient of the selected factor at the voxels where it is significant, 0 elsewhere</string>
             </property>
            </widget>
           </item>
@@ -1263,7 +1279,7 @@
              <stringlist notr="true"/>
             </property>
             <property name="baseName">
-             <string>QValuesImage</string>
+             <string>EffectImage</string>
             </property>
             <property name="interactionNodeSingletonTag">
              <string notr="true"/>

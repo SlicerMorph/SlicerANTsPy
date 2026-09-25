@@ -2008,8 +2008,12 @@ class ANTsPyRegistrationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin
         templateMask = self.ui.templateMaskComboBox.currentNode()
         outputImage = self.ui.outputImageComboBox.currentNode()
         covariate = self.ui.qValueComboBox.currentText
-        
-        self.logic.generateImages(covariate, template, templateMask, outputImage)
+        useFDR = self.ui.fdrCheckBox.checked
+
+        numberOfSignificantVoxels = self.logic.generateImages(covariate, template, templateMask, outputImage, useFDR)
+        slicer.util.showStatusMessage(
+            f"{numberOfSignificantVoxels} voxels significant for {covariate} "
+            f"({'FDR q' if useFDR else 'uncorrected p'} < 0.05)", 5000)
 
 
     def setupDBMCache(self):
@@ -2979,7 +2983,13 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
 
 
 
-    def generateImages(self, targetCovariate, templateNode, templateMaskNode,outputImageNode):
+    def generateImages(self, targetCovariate, templateNode, templateMaskNode, outputImageNode, useFDR=True, alpha=0.05):
+        """Write the coefficient of targetCovariate at the voxels where it is significant.
+
+        A voxel is significant when its FDR-corrected q-value (useFDR) or its
+        uncorrected p-value is below alpha. All other voxels, and voxels outside the
+        mask, are 0. Returns the number of significant voxels.
+        """
         import statsmodels
         import ants
 
@@ -2990,18 +3000,20 @@ class ANTsPyRegistrationLogic(ITKANTsCommonLogic):
             template = antsImageFromNode(templateNode)
             template_mask = ants.get_mask(template)
 
-        log_jacobian_p_values = self.dbm['pValues']['pval_'+ targetCovariate]
-        log_jacobian_q_values = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=0.05, method='poscorr', is_sorted=False)[1]
-        log_jacobian_q_values_image = ants.matrix_to_images(np.reshape(log_jacobian_q_values, (1, len(log_jacobian_q_values))), template_mask)[0]
+        log_jacobian_p_values = np.asarray(self.dbm['pValues']['pval_'+ targetCovariate])
+        log_jacobian_beta_values = np.asarray(self.dbm['coefficientValues']['coef_'+ targetCovariate])
+        if useFDR:
+            significanceValues = statsmodels.stats.multitest.fdrcorrection(log_jacobian_p_values, alpha=alpha, method='poscorr', is_sorted=False)[1]
+        else:
+            significanceValues = log_jacobian_p_values
+        significant = significanceValues < alpha
 
-        # The output is the FDR-corrected q-value of each voxel, as its name says.
-        # Voxels outside the mask were not tested; set them to 1 (not significant)
-        # rather than leaving them at 0, which would read as highly significant.
-        qArray = log_jacobian_q_values_image.numpy()
-        qArray[template_mask.numpy() == 0] = 1.0
-        output_Image = log_jacobian_q_values_image.new_image_like(qArray)
+        # Coefficients at the significant voxels, 0 elsewhere (and outside the mask)
+        effectValues = np.where(significant, log_jacobian_beta_values, 0.0)
+        output_Image = ants.matrix_to_images(np.reshape(effectValues, (1, len(effectValues))), template_mask)[0]
 
         nodeFromANTSImage(output_Image, outputImageNode)
+        return int(significant.sum())
 
 
     def computeAverageImage(self, filePaths, outputNode):
